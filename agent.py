@@ -176,6 +176,19 @@ async def execute_dispatch(agent_name: str, task: str, sub_prompts: dict) -> str
     return await runner(task=task, prompt=prompt)
 
 
+async def _run_plain_tool(fn_name: str, fn_args: dict) -> str:
+    """
+    执行 TOOL_REGISTRY 中的普通工具（dispatch_to_subagent 不走这里）。
+    普通版与流式版的主 Agent Loop 共用此实现，保证错误处理行为一致。
+    """
+    try:
+        if fn_name in TOOL_REGISTRY:
+            return str(await TOOL_REGISTRY[fn_name](**fn_args))
+        return f"[错误] 未知工具: {fn_name}"
+    except Exception as e:
+        return f"[错误] 工具执行失败 ({fn_name}): {e}"
+
+
 async def _execute_tool_call(tool_call, sub_prompts: dict) -> str:
     """
     执行单个工具调用（dispatch_to_subagent 或 TOOL_REGISTRY 中的普通工具）。
@@ -187,19 +200,17 @@ async def _execute_tool_call(tool_call, sub_prompts: dict) -> str:
     fn_args = json.loads(tool_call.function.arguments)
 
     print(f"  → {fn_name}({str(fn_args)[:100]})")
-    try:
-        if fn_name == "dispatch_to_subagent":
+    if fn_name == "dispatch_to_subagent":
+        try:
             result = await execute_dispatch(
                 agent_name=fn_args["agent_name"],
                 task=fn_args["task"],
                 sub_prompts=sub_prompts,
             )
-        elif fn_name in TOOL_REGISTRY:
-            result = await TOOL_REGISTRY[fn_name](**fn_args)
-        else:
-            result = f"[错误] 未知工具: {fn_name}"
-    except Exception as e:
-        result = f"[错误] 工具执行失败 ({fn_name}): {e}"
+        except Exception as e:
+            result = f"[错误] 工具执行失败 ({fn_name}): {e}"
+    else:
+        result = await _run_plain_tool(fn_name, fn_args)  # 内部自带异常捕获
     print(f"  ← 结果: {str(result)[:120]}{'...' if len(str(result)) > 120 else ''}")
     return str(result)
 
@@ -383,19 +394,12 @@ async def run_main_agent_stream(
                     await event_queue.put(_sse("subagent", subagent=sub_name, status="done"))
                     return result
                 else:
-                    # 普通工具
+                    # 普通工具（与普通版共用 _run_plain_tool）
                     await event_queue.put(
                         _sse("tool_call", agent="main", tool=fn_name,
                              args=str(fn_args)[:200], status="calling")
                     )
-                    try:
-                        if fn_name in TOOL_REGISTRY:
-                            result = str(await TOOL_REGISTRY[fn_name](**fn_args))
-                        else:
-                            result = f"[错误] 未知工具: {fn_name}"
-                    except Exception as e:
-                        result = f"[错误] 工具执行失败 ({fn_name}): {e}"
-
+                    result = await _run_plain_tool(fn_name, fn_args)
                     await event_queue.put(
                         _sse("tool_call", agent="main", tool=fn_name,
                              args=str(fn_args)[:200],

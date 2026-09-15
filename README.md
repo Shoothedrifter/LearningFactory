@@ -70,6 +70,11 @@
          汇总 → 主 Agent 合成最终输出
 ```
 
+> **并行执行**：主 Agent 同一轮返回的多个工具调用（包括多个 `dispatch_to_subagent`）通过
+> `asyncio.gather` 并发执行。Skill 工作流要求的"同时分派 3 个子 Agent"是真正的并行——
+> 三个子 Agent 的研究同时进行，总耗时约等于最慢的那个，而非三者之和。
+> 流式版本通过共享事件队列实时转发并行任务的过程事件（事件协议不变，前端无需改动）。
+
 ### 核心 Agent Loop（ReAct 模式）
 
 `agents/base.py` 实现了标准的 ReAct (Reasoning + Acting) 循环：
@@ -268,6 +273,16 @@ API 端点：`https://open.bigmodel.cn/api/paas/v4/`（兼容 OpenAI SDK）
 | — | `tools/repo.py` → MCP `zread`（新增） |
 | — | `tools/filesystem.py`（新增，Skill 输出用） |
 | — | `.claude/skills/` Skill 系统（新增） |
+
+## 开发与测试
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+测试覆盖：同轮多工具调用的并行执行（并发峰值断言）、OpenAI 消息协议完整性
+（tool_call_id 顺序回填）、单个工具失败的隔离性（错误成为该工具的结果，不影响其他工具）。
 
 ## 注意事项
 
