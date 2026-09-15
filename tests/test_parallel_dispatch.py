@@ -7,6 +7,7 @@ run_main_agent 同轮多工具调用并行执行的 TDD 测试。
 """
 
 import asyncio
+from types import SimpleNamespace
 
 from helpers import ConcurrencyRecorder, make_tool_call, make_tool_calls_response, make_text_response
 
@@ -114,3 +115,31 @@ async def test_one_tool_failure_does_not_break_others(patch_openai, monkeypatch)
     assert "[错误]" in tool_msgs[1]["content"]
     assert "子 Agent 崩了" in tool_msgs[1]["content"]
     assert "web_researcher 的研究结果" in tool_msgs[2]["content"]
+
+
+async def test_malformed_arguments_become_error_result(patch_openai, monkeypatch):
+    """畸形 JSON 参数：错误成为该工具的结果字符串，其余工具照常，整轮不被炸掉。"""
+    bad_call = SimpleNamespace(
+        id="call_bad",
+        function=SimpleNamespace(
+            name="dispatch_to_subagent",
+            arguments='{"agent_name": "docs_researcher", "task": ',  # 截断的 JSON
+        ),
+    )
+    recorder = ConcurrencyRecorder()
+    monkeypatch.setattr(agent, "SUBAGENT_RUNNERS", _make_runners(recorder))
+    client = patch_openai(
+        make_tool_calls_response([bad_call, _dispatch_call("call_ok", "web_researcher")]),
+        make_text_response("收尾"),
+    )
+
+    answer = await agent.run_main_agent(
+        system_prompt="测试",
+        messages=[{"role": "user", "content": "研究一下"}],
+        sub_prompts={},
+    )
+
+    assert answer == "收尾"
+    tool_msgs = client.chat.completions.create.call_args_list[1].kwargs["messages"][3:5]
+    assert "工具参数解析失败" in tool_msgs[0]["content"]
+    assert "web_researcher 的研究结果" in tool_msgs[1]["content"]

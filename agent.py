@@ -193,24 +193,27 @@ async def _execute_tool_call(tool_call, sub_prompts: dict) -> str:
     """
     执行单个工具调用（dispatch_to_subagent 或 TOOL_REGISTRY 中的普通工具）。
 
-    始终返回字符串结果、不向外抛异常（含未知工具/执行异常），
+    始终返回字符串结果、不向外抛异常（含参数解析失败、未知工具/执行异常），
     以便 asyncio.gather 并发调用时单个失败不影响其他调用。
     """
     fn_name = tool_call.function.name
-    fn_args = json.loads(tool_call.function.arguments)
+    fn_args_raw = tool_call.function.arguments
 
-    print(f"  → {fn_name}({str(fn_args)[:100]})")
-    if fn_name == "dispatch_to_subagent":
-        try:
+    print(f"  → {fn_name}({fn_args_raw[:80]}{'...' if len(fn_args_raw) > 80 else ''})")
+    try:
+        fn_args = json.loads(fn_args_raw)
+        if fn_name == "dispatch_to_subagent":
             result = await execute_dispatch(
                 agent_name=fn_args["agent_name"],
                 task=fn_args["task"],
                 sub_prompts=sub_prompts,
             )
-        except Exception as e:
-            result = f"[错误] 工具执行失败 ({fn_name}): {e}"
-    else:
-        result = await _run_plain_tool(fn_name, fn_args)  # 内部自带异常捕获
+        else:
+            result = await _run_plain_tool(fn_name, fn_args)  # 内部自带异常捕获
+    except json.JSONDecodeError:
+        result = f"[错误] 工具参数解析失败: {fn_args_raw}"
+    except Exception as e:
+        result = f"[错误] 工具执行失败 ({fn_name}): {e}"
     print(f"  ← 结果: {str(result)[:120]}{'...' if len(str(result)) > 120 else ''}")
     return str(result)
 
@@ -364,12 +367,16 @@ async def run_main_agent_stream(
             async def _run_tool_call_streaming(tool_call) -> str:
                 """执行单个工具调用，把过程事件推入 event_queue，返回工具结果字符串。"""
                 fn_name = tool_call.function.name
-                fn_args = json.loads(tool_call.function.arguments)
 
                 if fn_name == "dispatch_to_subagent":
                     # 子 Agent 调度 — 并行时多个子 Agent 的事件会交错，事件内带名称可区分
-                    sub_name = fn_args["agent_name"]
-                    sub_task = fn_args["task"]
+                    try:
+                        fn_args = json.loads(tool_call.function.arguments)
+                        sub_name = fn_args["agent_name"]
+                        sub_task = fn_args["task"]
+                    except (json.JSONDecodeError, KeyError) as e:
+                        return f"[错误] dispatch_to_subagent 参数无效: {e}"
+
                     await event_queue.put(
                         _sse("subagent", subagent=sub_name, status="start", task=sub_task[:100])
                     )
@@ -381,20 +388,29 @@ async def run_main_agent_stream(
                         result = f"[错误] 未知子 Agent: {sub_name}"
                     else:
                         sub_results = []
-                        async for sub_event_str in sub_runner(task=sub_task, prompt=sub_prompt):
-                            await event_queue.put(sub_event_str)  # 实时转发
-                            try:
-                                sub_event = json.loads(sub_event_str)
-                                if sub_event.get("type") == "answer":
-                                    sub_results.append(sub_event.get("content", ""))
-                            except (json.JSONDecodeError, AttributeError):
-                                pass
-                        result = "\n".join(sub_results) if sub_results else "[子 Agent 未返回结果]"
+                        try:
+                            # 消费子 Agent 事件流；单个子 Agent 崩溃只影响自身结果
+                            async for sub_event_str in sub_runner(task=sub_task, prompt=sub_prompt):
+                                await event_queue.put(sub_event_str)  # 实时转发
+                                try:
+                                    sub_event = json.loads(sub_event_str)
+                                    if sub_event.get("type") == "answer":
+                                        sub_results.append(sub_event.get("content", ""))
+                                except (json.JSONDecodeError, AttributeError):
+                                    pass
+                        except Exception as e:
+                            result = f"[错误] 工具执行失败 ({fn_name}): {e}"
+                        else:
+                            result = "\n".join(sub_results) if sub_results else "[子 Agent 未返回结果]"
 
                     await event_queue.put(_sse("subagent", subagent=sub_name, status="done"))
                     return result
                 else:
                     # 普通工具（与普通版共用 _run_plain_tool）
+                    try:
+                        fn_args = json.loads(tool_call.function.arguments)
+                    except json.JSONDecodeError as e:
+                        return f"[错误] 工具参数解析失败: {e}"
                     await event_queue.put(
                         _sse("tool_call", agent="main", tool=fn_name,
                              args=str(fn_args)[:200], status="calling")

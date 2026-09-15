@@ -7,6 +7,7 @@ run_main_agent_stream 同轮多子 Agent 并行执行的 TDD 测试。
 
 import asyncio
 import json
+from types import SimpleNamespace
 
 from helpers import ConcurrencyRecorder, make_tool_call, make_tool_calls_response, make_text_response
 
@@ -87,6 +88,9 @@ async def test_stream_all_starts_before_any_done(patch_openai, monkeypatch):
 
     sub_events = [e for e in events if e["type"] == "subagent"]
     statuses = [e["status"] for e in sub_events]
+    # 注意：真实生产流中子 Agent runner 自身也会各发一对 subagent start/done
+    # （与主 Agent 发的重复），实际为 12 个事件；本测试用不发 subagent 事件的
+    # 假 runner，仅验证"并发启动"语义。将来做事件去重时需同步改写本断言。
     # 串行实现下为 start,done,start,done,start,done → 此断言先失败
     assert statuses[:3] == ["start", "start", "start"]
     assert statuses[3:] == ["done", "done", "done"]
@@ -112,3 +116,84 @@ async def test_stream_subagent_answers_become_tool_result(patch_openai, monkeypa
     assert tool_msg["role"] == "tool"
     assert tool_msg["tool_call_id"] == "call_1"
     assert "docs_researcher 的结论" in tool_msg["content"]
+
+
+def _make_stream_runners_with_failure(failing_name: str):
+    """三个假流式 runner，failing_name 那个在产出 answer 前崩溃。"""
+
+    def make(name: str):
+        async def runner(task: str, prompt: str):
+            yield json.dumps(
+                {"type": "status", "agent": name, "message": f"{name} 工作中"},
+                ensure_ascii=False,
+            )
+            if name == failing_name:
+                raise RuntimeError("子 Agent 流式崩溃")
+            await asyncio.sleep(0.05)
+            yield json.dumps(
+                {"type": "answer", "agent": name, "content": f"{name} 的结论"},
+                ensure_ascii=False,
+            )
+
+        return runner
+
+    return {name: make(name) for name in ("docs_researcher", "repo_analyzer", "web_researcher")}
+
+
+async def test_stream_one_subagent_failure_does_not_break_others(patch_openai, monkeypatch):
+    """流式版：单个子 Agent 崩溃只影响自身结果，其余照常、主 Agent 正常收尾。"""
+    monkeypatch.setattr(agent, "SUBAGENT_STREAM_RUNNERS", _make_stream_runners_with_failure("repo_analyzer"))
+    client = patch_openai(
+        make_tool_calls_response([
+            _dispatch_call("call_1", "docs_researcher"),
+            _dispatch_call("call_2", "repo_analyzer"),
+            _dispatch_call("call_3", "web_researcher"),
+        ]),
+        make_text_response("部分成功的总结"),
+    )
+
+    events = await _collect_events(
+        system_prompt="测试",
+        messages=[{"role": "user", "content": "研究一下"}],
+        sub_prompts={},
+    )
+
+    # 主 Agent 正常收尾
+    answer_events = [e for e in events if e["type"] == "answer" and e.get("agent") == "main"]
+    assert answer_events[-1]["content"] == "部分成功的总结"
+    # 崩溃的子 Agent 也补齐了 done 事件（前端不卡"进行中"）
+    sub_events = [e for e in events if e["type"] == "subagent"]
+    assert [e["status"] for e in sub_events].count("done") == 3
+    # 工具结果回填：成功的进结论、失败的进错误串
+    tool_msgs = client.chat.completions.create.call_args_list[1].kwargs["messages"][3:6]
+    assert "docs_researcher 的结论" in tool_msgs[0]["content"]
+    assert "[错误]" in tool_msgs[1]["content"]
+    assert "子 Agent 流式崩溃" in tool_msgs[1]["content"]
+    assert "web_researcher 的结论" in tool_msgs[2]["content"]
+
+
+async def test_stream_malformed_arguments_do_not_break_round(patch_openai, monkeypatch):
+    """流式版：畸形 JSON 参数成为错误结果，事件流与整轮不受影响。"""
+    bad_call = SimpleNamespace(
+        id="call_bad",
+        function=SimpleNamespace(
+            name="dispatch_to_subagent",
+            arguments='{"agent_name": ',  # 截断的 JSON
+        ),
+    )
+    monkeypatch.setattr(agent, "SUBAGENT_STREAM_RUNNERS", _make_stream_runners(ConcurrencyRecorder()))
+    client = patch_openai(
+        make_tool_calls_response([bad_call]),
+        make_text_response("收尾"),
+    )
+
+    events = await _collect_events(
+        system_prompt="测试",
+        messages=[{"role": "user", "content": "研究一下"}],
+        sub_prompts={},
+    )
+
+    answer_events = [e for e in events if e["type"] == "answer" and e.get("agent") == "main"]
+    assert answer_events[-1]["content"] == "收尾"
+    tool_msg = client.chat.completions.create.call_args_list[1].kwargs["messages"][3]
+    assert "[错误]" in tool_msg["content"]
