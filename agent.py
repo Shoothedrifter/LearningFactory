@@ -176,6 +176,34 @@ async def execute_dispatch(agent_name: str, task: str, sub_prompts: dict) -> str
     return await runner(task=task, prompt=prompt)
 
 
+async def _execute_tool_call(tool_call, sub_prompts: dict) -> str:
+    """
+    执行单个工具调用（dispatch_to_subagent 或 TOOL_REGISTRY 中的普通工具）。
+
+    始终返回字符串结果、不向外抛异常（含未知工具/执行异常），
+    以便 asyncio.gather 并发调用时单个失败不影响其他调用。
+    """
+    fn_name = tool_call.function.name
+    fn_args = json.loads(tool_call.function.arguments)
+
+    print(f"  → {fn_name}({str(fn_args)[:100]})")
+    try:
+        if fn_name == "dispatch_to_subagent":
+            result = await execute_dispatch(
+                agent_name=fn_args["agent_name"],
+                task=fn_args["task"],
+                sub_prompts=sub_prompts,
+            )
+        elif fn_name in TOOL_REGISTRY:
+            result = await TOOL_REGISTRY[fn_name](**fn_args)
+        else:
+            result = f"[错误] 未知工具: {fn_name}"
+    except Exception as e:
+        result = f"[错误] 工具执行失败 ({fn_name}): {e}"
+    print(f"  ← 结果: {str(result)[:120]}{'...' if len(str(result)) > 120 else ''}")
+    return str(result)
+
+
 # ── 主 Agent Loop（带 dispatch 支持）─────────────────────────────────────────
 
 async def run_main_agent(
@@ -230,34 +258,18 @@ async def run_main_agent(
                 ],
             })
 
-            for tool_call in msg.tool_calls:
-                fn_name = tool_call.function.name
-                fn_args = json.loads(tool_call.function.arguments)
+            # 同一轮的多个工具调用并发执行（dispatch 到多个子 Agent 时即真正的并行）
+            # 注意：并行时各调用的 print 日志会交错输出，属预期行为
+            results = await asyncio.gather(
+                *(_execute_tool_call(tc, sub_prompts) for tc in msg.tool_calls)
+            )
 
-                print(f"  → {fn_name}({str(fn_args)[:100]})")
-
-                try:
-                    if fn_name == "dispatch_to_subagent":
-                        # 特殊处理：调用子 Agent
-                        result = await execute_dispatch(
-                            agent_name=fn_args["agent_name"],
-                            task=fn_args["task"],
-                            sub_prompts=sub_prompts,
-                        )
-                    elif fn_name in TOOL_REGISTRY:
-                        # 普通工具：直接从注册表调用
-                        result = await TOOL_REGISTRY[fn_name](**fn_args)
-                    else:
-                        result = f"[错误] 未知工具: {fn_name}"
-                except Exception as e:
-                    result = f"[错误] 工具执行失败 ({fn_name}): {e}"
-
-                print(f"  ← 结果: {str(result)[:120]}{'...' if len(str(result)) > 120 else ''}")
-
+            # gather 保持结果顺序与 tool_calls 一致，按协议顺序回填 tool 消息
+            for tool_call, result in zip(msg.tool_calls, results):
                 local_messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
-                    "content": str(result),
+                    "content": result,
                 })
         else:
             # 无工具调用，返回最终答案
