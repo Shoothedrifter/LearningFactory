@@ -1,0 +1,10 @@
+# 核心依赖
+openai>=1.30.0          # 智谱 AI 兼容 OpenAI SDK，用这个而非官方 anthropic SDK
+httpx>=0.27.0           # 异步 HTTP 客户端，用于 Notion API
+python-dotenv>=1.0.0    # 从 .env 文件加载环境变量
+mcp>=1.0.0              # MCP SDK，用于连接 MCP 服务器
+beautifulsoup4>=4.12.0  # HTML 解析（保留，可能有其他用途）
+
+# Web 服务依赖
+fastapi>=0.110.0        # Web 框架
+uvicorn>=0.27.0         # ASGI 服务器
