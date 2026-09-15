@@ -347,15 +347,21 @@ async def run_main_agent_stream(
                 ],
             })
 
-            for tool_call in msg.tool_calls:
+            # ── 并行执行本轮所有工具调用，过程事件经共享队列实时转发 ──
+            event_queue: asyncio.Queue = asyncio.Queue()
+
+            async def _run_tool_call_streaming(tool_call) -> str:
+                """执行单个工具调用，把过程事件推入 event_queue，返回工具结果字符串。"""
                 fn_name = tool_call.function.name
                 fn_args = json.loads(tool_call.function.arguments)
 
                 if fn_name == "dispatch_to_subagent":
-                    # 子 Agent 调度 — 流式推送子 Agent 事件
+                    # 子 Agent 调度 — 并行时多个子 Agent 的事件会交错，事件内带名称可区分
                     sub_name = fn_args["agent_name"]
                     sub_task = fn_args["task"]
-                    yield _sse("subagent", subagent=sub_name, status="start", task=sub_task[:100])
+                    await event_queue.put(
+                        _sse("subagent", subagent=sub_name, status="start", task=sub_task[:100])
+                    )
 
                     sub_runner = SUBAGENT_STREAM_RUNNERS.get(sub_name)
                     sub_prompt = sub_prompts.get(sub_name, "你是一个有帮助的助手。")
@@ -363,11 +369,9 @@ async def run_main_agent_stream(
                     if sub_runner is None:
                         result = f"[错误] 未知子 Agent: {sub_name}"
                     else:
-                        # 收集子 Agent 的流式事件并转发
                         sub_results = []
                         async for sub_event_str in sub_runner(task=sub_task, prompt=sub_prompt):
-                            yield sub_event_str  # 转发子 Agent 事件
-                            # 如果是最终答案事件，提取内容
+                            await event_queue.put(sub_event_str)  # 实时转发
                             try:
                                 sub_event = json.loads(sub_event_str)
                                 if sub_event.get("type") == "answer":
@@ -376,44 +380,48 @@ async def run_main_agent_stream(
                                 pass
                         result = "\n".join(sub_results) if sub_results else "[子 Agent 未返回结果]"
 
-                    yield _sse("subagent", subagent=sub_name, status="done")
-
-                    local_messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": str(result),
-                    })
-
+                    await event_queue.put(_sse("subagent", subagent=sub_name, status="done"))
+                    return result
                 else:
                     # 普通工具
-                    yield _sse(
-                        "tool_call", agent="main",
-                        tool=fn_name,
-                        args=str(fn_args)[:200],
-                        status="calling",
+                    await event_queue.put(
+                        _sse("tool_call", agent="main", tool=fn_name,
+                             args=str(fn_args)[:200], status="calling")
                     )
-
                     try:
                         if fn_name in TOOL_REGISTRY:
-                            result = await TOOL_REGISTRY[fn_name](**fn_args)
+                            result = str(await TOOL_REGISTRY[fn_name](**fn_args))
                         else:
                             result = f"[错误] 未知工具: {fn_name}"
                     except Exception as e:
                         result = f"[错误] 工具执行失败 ({fn_name}): {e}"
 
-                    yield _sse(
-                        "tool_call", agent="main",
-                        tool=fn_name,
-                        args=str(fn_args)[:200],
-                        result=str(result)[:300],
-                        status="done",
+                    await event_queue.put(
+                        _sse("tool_call", agent="main", tool=fn_name,
+                             args=str(fn_args)[:200],
+                             result=str(result)[:300], status="done")
                     )
+                    return result
 
-                    local_messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": str(result),
-                    })
+            gather_future = asyncio.gather(
+                *(_run_tool_call_streaming(tc) for tc in msg.tool_calls)
+            )
+
+            # 泵：所有任务完成且队列排空前，持续把事件 yield 给调用方（50ms 轮询）
+            while not (gather_future.done() and event_queue.empty()):
+                try:
+                    yield await asyncio.wait_for(event_queue.get(), timeout=0.05)
+                except asyncio.TimeoutError:
+                    continue
+
+            # gather 保持结果顺序与 tool_calls 一致，按协议顺序回填 tool 消息
+            results = await gather_future
+            for tool_call, result in zip(msg.tool_calls, results):
+                local_messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": result,
+                })
         else:
             final_answer = msg.content or ""
             yield _sse("status", agent="main", message=f"完成（共 {round_num} 轮）")
