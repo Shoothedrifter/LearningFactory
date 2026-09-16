@@ -12,7 +12,6 @@ agent.py
 import asyncio
 import json
 import os
-from pathlib import Path
 from typing import AsyncGenerator
 
 from dotenv import load_dotenv
@@ -20,6 +19,7 @@ from dotenv import load_dotenv
 from agents.base import run_agent
 from agents.subagents import SUBAGENT_RUNNERS, SUBAGENT_STREAM_RUNNERS
 from tools import NOTION_TOOL_SCHEMAS, WEB_TOOL_SCHEMAS, FILESYSTEM_TOOL_SCHEMAS, TOOL_REGISTRY
+from tools.skills import get_skill_manifest, SKILL_TOOL_SCHEMA
 
 # 加载 .env 文件中的环境变量
 load_dotenv()
@@ -34,79 +34,39 @@ def load_prompt(filename: str) -> str:
         return f.read().strip()
 
 
-SKILLS_DIR = Path(__file__).parent / ".claude" / "skills"
-
-
 def load_skills() -> str:
     """
-    从 .claude/skills/ 目录加载所有 Skill，格式化为可注入 system prompt 的文本。
+    构建注入 system prompt 的技能清单（渐进披露第一层）。
 
-    每个 Skill 目录结构：
-        .claude/skills/{skill-name}/
-        ├── SKILL.md                  ← 主定义文件（必须存在）
-        └── references/*.md           ← 参考文件（可选）
-
-    返回:
-        拼接好的 Skill 文本；如果没有 Skill 则返回空字符串。
+    只注入各技能 frontmatter 的 name + description 与强制执行规则，
+    不注入技能全文——模型匹配到任务后通过 load_skill 工具按需加载
+    完整工作流（tools/skills.py），references 参考文件再深一层按需读取。
     """
-    if not SKILLS_DIR.exists():
+    manifest = get_skill_manifest()
+    if not manifest:
         return ""
 
-    parts: list[str] = []
+    # 技能清单：每行 "name: description"（模型据此判断是否匹配用户请求）
+    listing = "\n".join(f"- {item['name']}: {item['description']}" for item in manifest)
 
-    for skill_dir in sorted(SKILLS_DIR.iterdir()):
-        if not skill_dir.is_dir():
-            continue
-
-        skill_file = skill_dir / "SKILL.md"
-        if not skill_file.exists():
-            continue
-
-        content = skill_file.read_text(encoding="utf-8").strip()
-        parts.append(content)
-
-        # 加载 references/ 下的参考文件
-        refs_dir = skill_dir / "references"
-        if refs_dir.exists():
-            for ref_file in sorted(refs_dir.iterdir()):
-                if ref_file.suffix == ".md":
-                    ref_content = ref_file.read_text(encoding="utf-8").strip()
-                    parts.append(
-                        f"\n\n---\n\n# Reference: {ref_file.name}\n\n{ref_content}"
-                    )
-
-    if not parts:
-        return ""
-
-    skills_text = "\n\n---\n\n".join(parts)
-
-    # 注入强制执行规则，确保主 Agent 严格遵循 Skill 工作流
     enforcement = """
 
 ## Skill Execution Rules (MANDATORY)
 
-When a Skill matches the user's request, you MUST follow these rules without exception:
-
-### Research Phase
-- You MUST dispatch ALL THREE subagents in a single round (parallel dispatch):
-  - `docs_researcher` → official documentation
-  - `repo_analyzer` → repository structure and code
-  - `web_researcher` → community content (tutorials, videos, discussions)
-- Do NOT skip any subagent. Do NOT proceed with only one or two.
-- Include the Skill's extraction instructions in each subagent's task description.
-
-### Structure Phase
-- After receiving ALL subagent results, organize content strictly according to the Skill's structure requirements.
-- Do NOT invent your own structure. Follow the reference file's levels exactly.
-
-### Output Phase
-- You MUST use `write_file` tool to create local files. Do NOT use Notion for Skill output.
-- Create the exact folder structure defined by the Skill (e.g. `Learning-Factory/learning-{tool-name}/`).
-- Write each required file individually using `write_file`; for long files (over ~1500 characters), write the first chunk with `write_file`, then append the remaining content with `append_file` (each chunk ≤ 1500 characters).
-- After writing all files, use `list_directory` to confirm the output is correct.
+When a user request matches any skill listed above, you MUST:
+1. First call `load_skill(skill_name=...)` to load the full workflow, then follow it exactly.
+2. Research Phase: dispatch ALL THREE subagents in a single round (parallel dispatch):
+   - `docs_researcher` → official documentation
+   - `repo_analyzer` → repository structure and code
+   - `web_researcher` → community content (tutorials, videos, discussions)
+   Do NOT skip any subagent. Include the Skill's extraction instructions in each task.
+3. Output Phase: create local files with `write_file` (first chunk) + `append_file`
+   (each chunk ≤ 1500 characters) under the folder defined by the Skill
+   (e.g. `Learning-Factory/learning-{tool-name}/`). Do NOT use Notion for Skill output.
+   After writing, use `list_directory` to confirm.
 """
 
-    return "\n\n## Available Skills\n\n" + skills_text + enforcement
+    return "\n\n## Available Skills\n\n" + listing + enforcement
 
 
 # ── 主 Agent 工具定义 ──────────────────────────────────────────────────────────
@@ -147,8 +107,8 @@ DISPATCH_TOOL_SCHEMA = {
     },
 }
 
-# 主 Agent 的完整工具列表：调度子 Agent + Notion 读写 + 本地文件写入 + 网页搜索
-MAIN_AGENT_TOOLS = [DISPATCH_TOOL_SCHEMA] + NOTION_TOOL_SCHEMAS + FILESYSTEM_TOOL_SCHEMAS + WEB_TOOL_SCHEMAS
+# 主 Agent 的完整工具列表：调度子 Agent + 技能加载 + Notion 读写 + 本地文件写入 + 网页搜索
+MAIN_AGENT_TOOLS = [DISPATCH_TOOL_SCHEMA, SKILL_TOOL_SCHEMA] + NOTION_TOOL_SCHEMAS + FILESYSTEM_TOOL_SCHEMAS + WEB_TOOL_SCHEMAS
 
 # 主 Agent 使用能力最强的模型
 MAIN_AGENT_MODEL = "glm-4-plus"

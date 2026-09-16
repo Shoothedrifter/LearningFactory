@@ -125,7 +125,7 @@ MCP 调用使用 `GLM_API_KEY` 进行认证，无需额外配置。
 
 ### Skill 系统
 
-`.claude/skills/` 目录支持预定义工作流。当前内置 `learning-a-tool` Skill：
+`.claude/skills/` 目录支持技能，采用**渐进披露**机制：系统提示词只注入技能清单（frontmatter 的 name + description，几百字符），主 Agent 判断用户请求匹配某技能后，通过 `load_skill` 工具按需加载 SKILL.md 完整工作流，`references/` 参考文件再用 `reference` 参数按需读取——技能全文不再常驻每轮请求的上下文。当前内置 `learning-a-tool` Skill：
 
 **触发条件**：用户请求学习某个编程工具/库/框架时自动匹配。
 
