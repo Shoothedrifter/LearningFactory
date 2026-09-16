@@ -101,6 +101,8 @@
 | `repo_search` | `tools/repo.py` | 搜索仓库文档/issues/commits |
 | `write_file` | `tools/filesystem.py` | 写入本地文件（含路径穿越保护） |
 | `list_directory` | `tools/filesystem.py` | 列出目录内容 |
+| `append_file` | `tools/filesystem.py` | 分块追加写入长文档（每块 ≤1500 字符） |
+| `load_skill` | `tools/skills.py` | 按需加载技能完整工作流与参考文件 |
 
 ### 工具分配
 
@@ -125,7 +127,11 @@ MCP 调用使用 `GLM_API_KEY` 进行认证，无需额外配置。
 
 ### Skill 系统
 
-`.claude/skills/` 目录支持技能，采用**渐进披露**机制：系统提示词只注入技能清单（frontmatter 的 name + description，几百字符），主 Agent 判断用户请求匹配某技能后，通过 `load_skill` 工具按需加载 SKILL.md 完整工作流，`references/` 参考文件再用 `reference` 参数按需读取——技能全文不再常驻每轮请求的上下文。当前内置 `learning-a-tool` Skill：
+`.claude/skills/` 目录支持技能，采用**渐进披露**机制：系统提示词只注入技能清单（frontmatter 的 name + description，几百字符），主 Agent 判断用户请求匹配某技能后，通过 `load_skill` 工具按需加载 SKILL.md 完整工作流，`references/` 参考文件再用 `reference` 参数按需读取——技能全文不再常驻每轮请求的上下文。
+
+注：技能全文不常驻对话——多轮会话中每轮需要时可再次调用 `load_skill` 按需加载。
+
+当前内置 `learning-a-tool` Skill：
 
 **触发条件**：用户请求学习某个编程工具/库/框架时自动匹配。
 

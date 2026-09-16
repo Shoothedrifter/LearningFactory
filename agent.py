@@ -41,6 +41,9 @@ def load_skills() -> str:
     只注入各技能 frontmatter 的 name + description 与强制执行规则，
     不注入技能全文——模型匹配到任务后通过 load_skill 工具按需加载
     完整工作流（tools/skills.py），references 参考文件再深一层按需读取。
+
+    注意：技能清单在本函数调用时快照，SKILL.md 正文在 load_skill 调用时实时
+    读取——两者读取时机不同属预期设计。
     """
     manifest = get_skill_manifest()
     if not manifest:
@@ -54,7 +57,7 @@ def load_skills() -> str:
 ## Skill Execution Rules (MANDATORY)
 
 When a user request matches any skill listed above, you MUST:
-1. First call `load_skill(skill_name=...)` to load the full workflow, then follow it exactly.
+1. First call `load_skill(skill_name=...)` to load the full workflow, then follow it exactly. When the workflow names a `references/` file as authoritative (e.g. for structure), load it with `load_skill(skill_name=..., reference=...)` BEFORE organizing content.
 2. Research Phase: dispatch ALL THREE subagents in a single round (parallel dispatch):
    - `docs_researcher` → official documentation
    - `repo_analyzer` → repository structure and code
