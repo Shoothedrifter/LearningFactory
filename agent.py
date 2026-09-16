@@ -12,6 +12,7 @@ agent.py
 import asyncio
 import json
 import os
+from pathlib import Path
 from typing import AsyncGenerator
 
 from dotenv import load_dotenv
@@ -160,6 +161,45 @@ MALFORMED_ARGS_MESSAGE = (
 )
 
 
+def _screen_same_file_writes(tool_calls) -> dict:
+    """
+    同轮多工具调用的同文件写筛检（确定性防线）。
+
+    enforcement 只是指示，模型可能违反（把同一文件的多个写入/追加块放进
+    同一轮）——并发 open("a") 的写入顺序未定义，会导致内容静默颠倒。
+    本函数对 write_file/append_file 按 resolved path 去重：同一路径只放行
+    第一次出现，其余调用回填拦截错误串（不执行），引导下一轮再追加。
+
+    返回:
+        {tool_call 在列表中的索引: 拦截错误串}；无冲突返回空 dict。
+    """
+    seen: dict = {}  # resolved path → None（利用 dict 有序性做有序集合）
+    blocked: dict = {}
+    for idx, tc in enumerate(tool_calls):
+        if getattr(tc.function, "name", "") not in ("write_file", "append_file"):
+            continue
+        try:
+            path = json.loads(tc.function.arguments).get("path", "")
+        except (json.JSONDecodeError, AttributeError):
+            continue  # 畸形参数走既有 MALFORMED_ARGS_MESSAGE 路径，不在此拦截
+        key = str(Path(path).resolve())
+        if key in seen:
+            blocked[idx] = (
+                "[错误] 同一文件的多个写入/追加块不能放在同一轮（并发追加顺序"
+                "未定义，会静默损坏内容）。本轮已执行对该文件的第一个调用，"
+                "请把这块放到下一轮再追加。"
+            )
+        else:
+            seen[key] = None
+    return blocked
+
+
+async def _blocked_result(result: str, tool_call) -> str:
+    """把同轮同文件拦截结果包装成协程并打印日志，便于与真实执行一起 gather。"""
+    print(f"  → [拦截] {tool_call.function.name}（同轮同文件，推迟到下一轮）")
+    return result
+
+
 async def _run_plain_tool(fn_name: str, fn_args: dict) -> str:
     """
     执行 TOOL_REGISTRY 中的普通工具（dispatch_to_subagent 不走这里）。
@@ -257,9 +297,13 @@ async def run_main_agent(
 
             # 同一轮的多个工具调用并发执行（dispatch 到多个子 Agent 时即真正的并行）
             # 注意：并行时各调用的 print 日志会交错输出，属预期行为
-            results = await asyncio.gather(
-                *(_execute_tool_call(tc, sub_prompts) for tc in msg.tool_calls)
-            )
+            # 同轮同文件写先经静态筛检：同一路径只放行第一次出现（确定性防线）
+            blocked = _screen_same_file_writes(msg.tool_calls)
+            results = await asyncio.gather(*(
+                _execute_tool_call(tc, sub_prompts) if i not in blocked
+                else _blocked_result(blocked[i], tc)
+                for i, tc in enumerate(msg.tool_calls)
+            ))
 
             # gather 保持结果顺序与 tool_calls 一致，按协议顺序回填 tool 消息
             for tool_call, result in zip(msg.tool_calls, results):
@@ -419,8 +463,20 @@ async def run_main_agent_stream(
                     )
                     return result
 
+            # 同轮同文件写筛检（与普通版同一防线；被拦调用推送带结果的事件后直接返回）
+            blocked = _screen_same_file_writes(msg.tool_calls)
+
+            async def _run_or_block(index, tc) -> str:
+                if index in blocked:
+                    await event_queue.put(
+                        _sse("tool_call", agent="main", tool=tc.function.name,
+                             args="", result=blocked[index][:300], status="done")
+                    )
+                    return blocked[index]
+                return await _run_tool_call_streaming(tc)
+
             gather_future = asyncio.gather(
-                *(_run_tool_call_streaming(tc) for tc in msg.tool_calls)
+                *(_run_or_block(i, tc) for i, tc in enumerate(msg.tool_calls))
             )
 
             # 泵：所有任务完成且队列排空前，持续把事件 yield 给调用方（50ms 轮询）
