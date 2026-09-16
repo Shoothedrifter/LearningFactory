@@ -76,3 +76,5 @@ Learning-Factory/learning-{tool-name}/
     ├── 02-core-concepts/
     └── 03-patterns/
 ```
+
+**Chunked writing (IMPORTANT)**: Long files (especially `learning-path.md`) MUST be written in chunks — a single tool call with a multi-thousand-character `content` argument often produces invalid JSON (truncated or mis-escaped) and will keep failing. Write the first chunk (≤ 1500 characters) with `write_file`, then append each remaining chunk (≤ 1500 characters each) with `append_file`. Never attempt to write an entire long document in one tool call.
