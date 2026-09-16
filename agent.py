@@ -153,6 +153,10 @@ MAIN_AGENT_TOOLS = [DISPATCH_TOOL_SCHEMA] + NOTION_TOOL_SCHEMAS + FILESYSTEM_TOO
 # 主 Agent 使用能力最强的模型
 MAIN_AGENT_MODEL = "glm-4-plus"
 
+# 主 Agent 工具调用轮次上限（普通版与流式版共用）
+# 模块级常量便于测试中 monkeypatch 缩小轮次来构造耗尽场景
+MAX_ROUNDS = 15
+
 
 # ── 工具执行器扩展 ─────────────────────────────────────────────────────────────
 #
@@ -252,7 +256,6 @@ async def run_main_agent(
     )
 
     local_messages = list(messages)
-    MAX_ROUNDS = 15
 
     for round_num in range(1, MAX_ROUNDS + 1):
         response = await client.chat.completions.create(
@@ -303,7 +306,19 @@ async def run_main_agent(
             print(f"\n[主 Agent] 完成（共 {round_num} 轮）")
             return msg.content or ""
 
-    return msg.content or "[达到最大调用轮次]"
+    # 达到最大轮次：对齐流式版行为——请求模型基于已有信息总结，而非静默返回占位串
+    print(f"\n[主 Agent] 达到最大轮次 ({MAX_ROUNDS})，请求模型总结已有信息...")
+    local_messages.append({
+        "role": "user",
+        "content": "已达到最大工具调用轮次。请不要再调用任何工具，直接基于以上已获得的全部信息输出最终回答；若学习计划文件只生成了部分，请说明已完成与缺失的文件。",
+    })
+    summary_response = await client.chat.completions.create(
+        model=model,
+        messages=[{"role": "system", "content": system_prompt}] + local_messages,
+        tools=None,
+        tool_choice=None,
+    )
+    return summary_response.choices[0].message.content or "[达到最大轮次且总结失败]"
 
 
 # ── 主 Agent Loop 流式版本 ──────────────────────────────────────────────────────
@@ -336,7 +351,6 @@ async def run_main_agent_stream(
     )
 
     local_messages = list(messages)
-    MAX_ROUNDS = 15
 
     yield _sse("status", agent="main", message="开始处理...")
 
