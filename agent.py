@@ -64,8 +64,12 @@ When a user request matches any skill listed above, you MUST:
    - `web_researcher` → community content (tutorials, videos, discussions)
    Do NOT skip any subagent. Include the Skill's extraction instructions in each task.
 3. Output Phase: create local files with `write_file` (first chunk) + `append_file`
-   (each chunk ≤ 1500 characters) under the folder defined by the Skill
-   (e.g. `Learning-Factory/learning-{tool-name}/`). Do NOT use Notion for Skill output.
+   (each chunk ≤ 1500 characters — the tool REJECTS longer content, do not attempt it)
+   under the folder defined by the Skill (e.g. `Learning-Factory/learning-{tool-name}/`).
+   Do NOT use Notion for Skill output. Each round is precious: batch independent writes
+   in the SAME round — multiple `write_file` calls for different files together, and
+   `append_file` calls for different files together. Chunks appending to the SAME file
+   MUST stay sequential across rounds (order matters); different files are parallel-safe.
    After writing, use `list_directory` to confirm.
 """
 
