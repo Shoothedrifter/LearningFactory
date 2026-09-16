@@ -176,6 +176,19 @@ async def execute_dispatch(agent_name: str, task: str, sub_prompts: dict) -> str
     return await runner(task=task, prompt=prompt)
 
 
+# 工具参数不是合法 JSON 时的错误文案（普通版与流式版共用）
+# 设计要点：
+#   1. 只回显前 200 字符——全量回显数千字符的原文既占上下文也无助于定位问题
+#   2. 附带分块写入引导——超长 content 的参数常因 max_tokens 截断或转义错误
+#      而解析失败，引导模型换策略而非以同样方式盲目重试
+MALFORMED_ARGS_MESSAGE = (
+    "[错误] 工具参数解析失败（参数前 200 字符）: {raw}\n"
+    "提示：超长 content 常因截断或转义而无法解析。请缩短单次写入的 content，"
+    "改为分块写入：先用 write_file 写入文件开头，再用 append_file 逐块追加"
+    "（每块不超过 1500 字符）。"
+)
+
+
 async def _run_plain_tool(fn_name: str, fn_args: dict) -> str:
     """
     执行 TOOL_REGISTRY 中的普通工具（dispatch_to_subagent 不走这里）。
@@ -211,7 +224,7 @@ async def _execute_tool_call(tool_call, sub_prompts: dict) -> str:
         else:
             result = await _run_plain_tool(fn_name, fn_args)  # 内部自带异常捕获
     except json.JSONDecodeError:
-        result = f"[错误] 工具参数解析失败: {fn_args_raw}"
+        result = MALFORMED_ARGS_MESSAGE.format(raw=fn_args_raw[:200])
     except Exception as e:
         result = f"[错误] 工具执行失败 ({fn_name}): {e}"
     print(f"  ← 结果: {str(result)[:120]}{'...' if len(str(result)) > 120 else ''}")
@@ -409,8 +422,10 @@ async def run_main_agent_stream(
                     # 普通工具（与普通版共用 _run_plain_tool）
                     try:
                         fn_args = json.loads(tool_call.function.arguments)
-                    except json.JSONDecodeError as e:
-                        return f"[错误] 工具参数解析失败: {e}"
+                    except json.JSONDecodeError:
+                        return MALFORMED_ARGS_MESSAGE.format(
+                            raw=tool_call.function.arguments[:200]
+                        )
                     await event_queue.put(
                         _sse("tool_call", agent="main", tool=fn_name,
                              args=str(fn_args)[:200], status="calling")
