@@ -101,7 +101,7 @@ When a Skill matches the user's request, you MUST follow these rules without exc
 
 ### Output Phase
 - You MUST use `write_file` tool to create local files. Do NOT use Notion for Skill output.
-- Create the exact folder structure defined by the Skill (e.g. `learning-{tool-name}/`).
+- Create the exact folder structure defined by the Skill (e.g. `Learning-Factory/learning-{tool-name}/`).
 - Write each required file individually using `write_file`.
 - After writing all files, use `list_directory` to confirm the output is correct.
 """

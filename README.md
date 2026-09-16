@@ -135,11 +135,11 @@ MCP 调用使用 `GLM_API_KEY` 进行认证，无需额外配置。
    - `repo_analyzer` → 仓库分析（架构、README、examples 目录）
    - `web_researcher` → 社区内容（教程、视频、讨论、常见坑）
 2. **结构化阶段** — 按 5 级渐进式学习框架组织内容
-3. **输出阶段** — 使用 `write_file` 工具在本地生成 `learning-{tool-name}/` 目录
+3. **输出阶段** — 使用 `write_file` 工具在本地生成 `Learning-Factory/learning-{tool-name}/` 目录
 
 **输出结构**：
 ```
-learning-{tool-name}/
+Learning-Factory/learning-{tool-name}/
 ├── README.md           # 概览和使用说明
 ├── resources.md        # 所有链接（按来源分类）
 ├── learning-path.md    # 五级学习路径主体内容

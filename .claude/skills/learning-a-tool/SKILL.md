@@ -64,10 +64,10 @@ Generate the learning path folder.
 
 ## Output Format
 
-Create the folder in the current working directory (`./learning-{tool-name}/`) containing:
+Create the folder under `./Learning-Factory/` in the current working directory (`./Learning-Factory/learning-{tool-name}/`) containing:
 
 ```
-learning-{tool-name}/
+Learning-Factory/learning-{tool-name}/
 ├── README.md           # Overview and how to use this learning path
 ├── resources.md        # All links organized by source (official, community)
 ├── learning-path.md    # Main content following the five levels

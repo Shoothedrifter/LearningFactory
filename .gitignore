@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 tests/
 .pytest_cache
+Learning-Factory
