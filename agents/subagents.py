@@ -103,9 +103,12 @@ SUBAGENT_RUNNERS = {
 
 
 async def run_docs_researcher_stream(task: str, prompt: str) -> AsyncGenerator[str, None]:
-    """docs_researcher 的流式版本。"""
-    import json
-    yield json.dumps({"type": "subagent", "subagent": "docs_researcher", "status": "start", "task": task[:100]}, ensure_ascii=False)
+    """docs_researcher 的流式版本。
+
+    注意：subagent start/done 事件由主 Agent 调度层（agent.py 的
+    _run_tool_call_streaming）统一发送；本函数只转发内部执行过程事件，
+    避免前端收到重复的事件对。
+    """
     async for event in run_agent_stream(
         system_prompt=prompt,
         tool_schemas=WEB_TOOL_SCHEMAS,
@@ -114,13 +117,15 @@ async def run_docs_researcher_stream(task: str, prompt: str) -> AsyncGenerator[s
         agent_name="docs_researcher",
     ):
         yield event
-    yield json.dumps({"type": "subagent", "subagent": "docs_researcher", "status": "done"}, ensure_ascii=False)
 
 
 async def run_repo_analyzer_stream(task: str, prompt: str) -> AsyncGenerator[str, None]:
-    """repo_analyzer 的流式版本。"""
-    import json
-    yield json.dumps({"type": "subagent", "subagent": "repo_analyzer", "status": "start", "task": task[:100]}, ensure_ascii=False)
+    """repo_analyzer 的流式版本。
+
+    注意：subagent start/done 事件由主 Agent 调度层（agent.py 的
+    _run_tool_call_streaming）统一发送；本函数只转发内部执行过程事件，
+    避免前端收到重复的事件对。
+    """
     async for event in run_agent_stream(
         system_prompt=prompt,
         tool_schemas=WEB_TOOL_SCHEMAS + REPO_TOOL_SCHEMAS,
@@ -130,13 +135,15 @@ async def run_repo_analyzer_stream(task: str, prompt: str) -> AsyncGenerator[str
         max_rounds=15,
     ):
         yield event
-    yield json.dumps({"type": "subagent", "subagent": "repo_analyzer", "status": "done"}, ensure_ascii=False)
 
 
 async def run_web_researcher_stream(task: str, prompt: str) -> AsyncGenerator[str, None]:
-    """web_researcher 的流式版本。"""
-    import json
-    yield json.dumps({"type": "subagent", "subagent": "web_researcher", "status": "start", "task": task[:100]}, ensure_ascii=False)
+    """web_researcher 的流式版本。
+
+    注意：subagent start/done 事件由主 Agent 调度层（agent.py 的
+    _run_tool_call_streaming）统一发送；本函数只转发内部执行过程事件，
+    避免前端收到重复的事件对。
+    """
     async for event in run_agent_stream(
         system_prompt=prompt,
         tool_schemas=WEB_TOOL_SCHEMAS,
@@ -145,7 +152,6 @@ async def run_web_researcher_stream(task: str, prompt: str) -> AsyncGenerator[st
         agent_name="web_researcher",
     ):
         yield event
-    yield json.dumps({"type": "subagent", "subagent": "web_researcher", "status": "done"}, ensure_ascii=False)
 
 
 # 流式版本的子 Agent 调度表

@@ -88,9 +88,9 @@ async def test_stream_all_starts_before_any_done(patch_openai, monkeypatch):
 
     sub_events = [e for e in events if e["type"] == "subagent"]
     statuses = [e["status"] for e in sub_events]
-    # 注意：真实生产流中子 Agent runner 自身也会各发一对 subagent start/done
-    # （与主 Agent 发的重复），实际为 12 个事件；本测试用不发 subagent 事件的
-    # 假 runner，仅验证"并发启动"语义。将来做事件去重时需同步改写本断言。
+    # 事件来源说明：subagent start/done 由主 Agent 调度层统一发送；
+    # 子 Agent 流式 runner 只转发内部过程事件（去重后与本测试的假
+    # runner 同构），故生产流中 subagent 事件也恰为 3 start + 3 done。
     # 串行实现下为 start,done,start,done,start,done → 此断言先失败
     assert statuses[:3] == ["start", "start", "start"]
     assert statuses[3:] == ["done", "done", "done"]
