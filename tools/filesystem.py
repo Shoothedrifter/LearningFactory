@@ -8,8 +8,10 @@ tools/filesystem.py
 import os
 from pathlib import Path
 
-# 写文件时的最大内容长度（防止意外写入超大文件）
-_MAX_CONTENT_CHARS = 100_000
+# 单次写入/追加的分块策略上限：超长 content 会让模型生成的 JSON 参数
+# 截断/转义失败（概率性故障），这里是确定性边界——超限直接拒绝并引导分块。
+# 数值与全链路文案一致（SKILL.md / schema / enforcement / 错误引导均为 1500）。
+_MAX_CHUNK_CHARS = 1_500
 
 
 async def write_file(path: str, content: str) -> str:
@@ -32,9 +34,13 @@ async def write_file(path: str, content: str) -> str:
         except ValueError:
             return f"[错误] 拒绝写入：路径 '{path}' 位于当前工作目录之外"
 
-        # 内容长度检查
-        if len(content) > _MAX_CONTENT_CHARS:
-            return f"[错误] 内容过长（{len(content)} 字符，上限 {_MAX_CONTENT_CHARS}）"
+        # 分块硬上限：超限拒绝落盘并引导分块（见模块头 _MAX_CHUNK_CHARS 注释）
+        if len(content) > _MAX_CHUNK_CHARS:
+            return (
+                f"[错误] 单次写入内容过长（{len(content)} 字符，分块上限 {_MAX_CHUNK_CHARS}）。"
+                "请只保留文件开头（≤1500 字符），剩余内容用 append_file 逐块追加"
+                "（每块 ≤1500 字符）；不同文件的写入可在同一轮并行调用。"
+            )
 
         # 自动创建父目录
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -73,9 +79,13 @@ async def append_file(path: str, content: str) -> str:
         except ValueError:
             return f"[错误] 拒绝写入：路径 '{path}' 位于当前工作目录之外"
 
-        # 内容长度检查（与 write_file 同一上限）
-        if len(content) > _MAX_CONTENT_CHARS:
-            return f"[错误] 内容过长（{len(content)} 字符，上限 {_MAX_CONTENT_CHARS}）"
+        # 分块硬上限（与 write_file 同一上限与文案基调）
+        if len(content) > _MAX_CHUNK_CHARS:
+            return (
+                f"[错误] 单次追加内容过长（{len(content)} 字符，分块上限 {_MAX_CHUNK_CHARS}）。"
+                "请把本块拆小（≤1500 字符）再追加；"
+                "不同文件的追加可在同一轮并行调用，但同一文件的块必须逐轮顺序追加。"
+            )
 
         # 自动创建父目录
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -129,7 +139,8 @@ FILESYSTEM_TOOL_SCHEMAS = [
             "name": "write_file",
             "description": (
                 "将内容写入本地文件。自动创建所需的父目录。"
-                "用于生成学习路径、资源列表等输出文件。"
+                "每次写入不超过 1500 字符（超限会被拒绝）——长文档分块写入："
+                "本工具只写文件开头，剩余内容用 append_file 逐块追加。"
             ),
             "parameters": {
                 "type": "object",
@@ -140,7 +151,7 @@ FILESYSTEM_TOOL_SCHEMAS = [
                     },
                     "content": {
                         "type": "string",
-                        "description": "要写入的文件内容（支持 Markdown 格式）",
+                        "description": "要写入的文件内容（不超过 1500 字符，超限会被拒绝）",
                     },
                 },
                 "required": ["path", "content"],
@@ -166,7 +177,7 @@ FILESYSTEM_TOOL_SCHEMAS = [
                     },
                     "content": {
                         "type": "string",
-                        "description": "要追加的内容（每次不超过 1500 字符）",
+                        "description": "要追加的内容（不超过 1500 字符，超限会被拒绝）",
                     },
                 },
                 "required": ["path", "content"],
