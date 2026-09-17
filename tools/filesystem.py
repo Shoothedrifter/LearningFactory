@@ -48,7 +48,7 @@ async def write_file(path: str, content: str, overwrite: bool = False) -> str:
 
         # 覆盖防线：既有非空文件默认拒绝（transformer 日志实害：盲写静默覆盖毁掉完整文档）。
         # 续写请走 append_file；确需整体重写先 read_file 确认既有内容再显式 overwrite=true。
-        if target.exists() and target.is_file() and target.stat().st_size > 0 and not overwrite:
+        if target.exists() and target.is_file() and target.stat().st_size > 0 and overwrite is not True:
             existing = target.read_text(encoding="utf-8", errors="replace")
             return (
                 f"[错误] 目标文件已存在且非空（{len(existing)} 字符），默认拒绝覆盖。"
@@ -252,7 +252,7 @@ FILESYSTEM_TOOL_SCHEMAS = [
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "目标文件路径（须与此前 write_file 的路径一致）",
+                        "description": "目标文件路径（分块续写同一文件时保持路径不变）",
                     },
                     "content": {
                         "type": "string",
