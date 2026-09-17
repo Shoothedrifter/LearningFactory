@@ -130,6 +130,22 @@ MAIN_AGENT_MODEL = "glm-4-plus"
 MAX_ROUNDS = 12
 
 
+def _budget_line(round_num: int) -> str:
+    """
+    拼接到 system prompt 尾部的轮次预算提示（follow up B）。
+
+    每轮随 round_num 变化、只存在于本次请求的组装层——不写入 local_messages，
+    调用方消息与跨会话历史均不受污染；配合 schema 层并行指示（follow up A）
+    促使模型把剩余轮次预算花在批量写入上。
+    """
+    left = MAX_ROUNDS - round_num + 1
+    return (
+        f"\n\n[Tool-call budget] Round {round_num}/{MAX_ROUNDS}, "
+        f"{left} round(s) left including this one — "
+        "batch independent tool calls in this round to save budget."
+    )
+
+
 # ── 工具执行器扩展 ─────────────────────────────────────────────────────────────
 #
 # agents/base.py 中的 TOOL_REGISTRY 只包含普通工具（web/bash/notion）。
@@ -271,7 +287,9 @@ async def run_main_agent(
     for round_num in range(1, MAX_ROUNDS + 1):
         response = await client.chat.completions.create(
             model=model,
-            messages=[{"role": "system", "content": system_prompt}] + local_messages,
+            messages=[
+                {"role": "system", "content": system_prompt + _budget_line(round_num)}
+            ] + local_messages,
             tools=MAIN_AGENT_TOOLS,
             tool_choice="auto",
         )
@@ -372,7 +390,9 @@ async def run_main_agent_stream(
     for round_num in range(1, MAX_ROUNDS + 1):
         response = await client.chat.completions.create(
             model=model,
-            messages=[{"role": "system", "content": system_prompt}] + local_messages,
+            messages=[
+                {"role": "system", "content": system_prompt + _budget_line(round_num)}
+            ] + local_messages,
             tools=MAIN_AGENT_TOOLS,
             tool_choice="auto",
         )
