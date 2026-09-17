@@ -14,13 +14,17 @@ from pathlib import Path
 _MAX_CHUNK_CHARS = 1_500
 
 
-async def write_file(path: str, content: str) -> str:
+async def write_file(path: str, content: str, overwrite: bool = False) -> str:
     """
     将内容写入本地文件。如果父目录不存在，会自动创建。
 
+    覆盖防线：目标文件已存在且非空时默认拒绝（防续写场景盲写毁掉已完成内容），
+    需整体重写须显式传 overwrite=True。
+
     参数:
-        path:    相对于当前工作目录的文件路径（如 "learning-pytorch/README.md"）
-        content: 要写入的文件内容
+        path:      相对于当前工作目录的文件路径（如 "learning-pytorch/README.md"）
+        content:   要写入的文件内容
+        overwrite: 目标文件已存在且非空时是否允许覆盖（默认 False 拒绝）
 
     返回:
         操作结果描述（成功路径 + 字符数，或错误信息）
@@ -40,6 +44,16 @@ async def write_file(path: str, content: str) -> str:
                 f"[错误] 单次写入内容过长（{len(content)} 字符，分块上限 {_MAX_CHUNK_CHARS}）。"
                 "请只保留文件开头（≤1500 字符），剩余内容用 append_file 逐块追加"
                 "（每块 ≤1500 字符）；不同文件的写入可在同一轮并行调用。"
+            )
+
+        # 覆盖防线：既有非空文件默认拒绝（transformer 日志实害：盲写静默覆盖毁掉完整文档）。
+        # 续写请走 append_file；确需整体重写先 read_file 确认既有内容再显式 overwrite=true。
+        if target.exists() and target.is_file() and target.stat().st_size > 0 and not overwrite:
+            existing = target.read_text(encoding="utf-8", errors="replace")
+            return (
+                f"[错误] 目标文件已存在且非空（{len(existing)} 字符），默认拒绝覆盖。"
+                "续写/补充内容请用 append_file；"
+                "确实要整体重写请先 read_file 确认既有内容，再传 overwrite=true。"
             )
 
         # 自动创建父目录
@@ -211,6 +225,10 @@ FILESYSTEM_TOOL_SCHEMAS = [
                     "content": {
                         "type": "string",
                         "description": "要写入的文件内容（不超过 1500 字符，超限会被拒绝）",
+                    },
+                    "overwrite": {
+                        "type": "boolean",
+                        "description": "目标文件已存在且非空时必须显式传 true 才会覆盖（默认 false 拒绝覆盖）",
                     },
                 },
                 "required": ["path", "content"],
