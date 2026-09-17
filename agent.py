@@ -72,8 +72,9 @@ When a user request matches any skill listed above, you MUST:
    `append_file` calls for different files together. Chunks appending to the SAME file
    MUST stay sequential across rounds (order matters); different files are parallel-safe.
    Skill output MUST stay under `Learning-Factory/learning-{tool-name}/` across turns —
-   when continuing earlier output, `list_directory` the existing folder first and append
-   to existing files; never create a new folder.
+   when continuing earlier output, `list_directory` `Learning-Factory/` first and append
+   to existing files; never create a new folder. Cite output files with
+   full relative paths in final answers.
    After writing, use `list_directory` to confirm.
 """
 
