@@ -130,6 +130,63 @@ async def list_directory(path: str = ".") -> str:
         return f"[错误] 列出目录失败: {e}"
 
 
+async def read_file(path: str, offset: int = 0, limit: int = 200) -> str:
+    """
+    读取本地文本文件内容（按行分页返回）。
+
+    续写/补充既有文件前的必经步骤——先读才知道文件已有什么，
+    避免 write_file 盲目覆盖造成内容丢失。
+
+    参数:
+        path:   相对于当前工作目录的文件路径
+        offset: 起始行号（0 起，默认从文件头开始）
+        limit:  最多读取的行数（默认 200 行）
+
+    返回:
+        头部元信息（总行数/字符数/当前页范围）+ 文件内容；超出部分尾部提示续读 offset
+    """
+    try:
+        # 安全检查：与写入一致，禁止路径穿越到项目外
+        target = Path(path).resolve()
+        cwd = Path.cwd().resolve()
+        try:
+            target.relative_to(cwd)
+        except ValueError:
+            return f"[错误] 拒绝读取：路径 '{path}' 位于当前工作目录之外"
+
+        if not target.exists():
+            return f"[错误] 文件不存在: {path}（可先用 list_directory 查看目录内容）"
+        if target.is_dir():
+            return f"[错误] 是目录不是文件: {path}（查看目录内容请用 list_directory）"
+
+        text = target.read_text(encoding="utf-8", errors="replace")
+        lines = text.splitlines()
+
+        # 空文件特判（避免头部出现"第 -1 行"）
+        if not lines:
+            return f"[文件] {target.relative_to(cwd)}（空文件，0 字符）"
+
+        # 参数规整：负值与 0 行上限的防御性钳制
+        offset = max(0, offset)
+        limit = max(1, limit)
+
+        page = lines[offset : offset + limit]
+        if not page:
+            return f"[错误] offset={offset} 超出文件总行数（共 {len(lines)} 行）"
+
+        header = (
+            f"[文件] {target.relative_to(cwd)}（共 {len(lines)} 行 / {len(text)} 字符，"
+            f"显示第 {offset}-{offset + len(page) - 1} 行）\n"
+        )
+        body = "\n".join(page)
+        if offset + limit < len(lines):
+            body += f"\n[提示] 还有 {len(lines) - offset - limit} 行未显示，用 offset={offset + limit} 继续读取"
+        return header + body
+
+    except Exception as e:
+        return f"[错误] 读取失败: {e}"
+
+
 # ── Tool Schema ────────────────────────────────────────────────────────────────
 
 FILESYSTEM_TOOL_SCHEMAS = [
@@ -202,6 +259,35 @@ FILESYSTEM_TOOL_SCHEMAS = [
                     },
                 },
                 "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_file",
+            "description": (
+                "读取本地文本文件内容（默认前 200 行，超出用 offset 续读）。"
+                "续写、补充或重写既有文件前必须先 read_file 了解已有内容，"
+                "避免盲目覆盖造成内容丢失。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "要读取的文件路径",
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "起始行号（0 起，默认 0）",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "最多读取的行数（默认 200）",
+                    },
+                },
+                "required": ["path"],
             },
         },
     },
