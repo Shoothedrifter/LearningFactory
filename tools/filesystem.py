@@ -93,6 +93,14 @@ async def append_file(path: str, content: str) -> str:
         except ValueError:
             return f"[错误] 拒绝写入：路径 '{path}' 位于当前工作目录之外"
 
+        # 空内容守卫：空追加不产生任何效果、只会白耗一轮工具调用
+        # （2026-09-18 实测日志：模型曾发出 content="" 的追加浪费一轮）
+        if content == "":
+            return (
+                "[错误] 拒绝空追加（content 为 0 字符）：空追加不产生任何效果、"
+                "只会浪费一轮工具调用。请带上实际要追加的内容（≤1500 字符）再调用。"
+            )
+
         # 分块硬上限（与 write_file 同一上限与文案基调）
         if len(content) > _MAX_CHUNK_CHARS:
             return (
