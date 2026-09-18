@@ -343,7 +343,7 @@ async def run_main_agent(
     print(f"\n[主 Agent] 达到最大轮次 ({MAX_ROUNDS})，请求模型总结已有信息...")
     local_messages.append({
         "role": "user",
-        "content": "已达到最大工具调用轮次。请不要再调用任何工具，直接基于以上已获得的全部信息输出最终回答；若学习计划文件只生成了部分，请说明已完成与缺失的文件，路径必须写完整相对路径（含 Learning-Factory/ 等目录前缀，不得省略），以便后续继续任务时沿用同一目录。",
+        "content": "已达到最大工具调用轮次。请不要再调用任何工具，直接基于以上已获得的全部信息输出最终回答；若学习计划文件只生成了部分，请说明已完成与缺失的文件，路径必须写完整相对路径（含 Learning-Factory/ 等目录前缀，不得省略），以便后续继续任务时沿用同一目录。已完成与未完成的判定只以工具结果为准：仅工具返回 [成功] 的写入才算已完成，凡工具返回 [错误] 的调用（含被拒绝的写入/追加）一律列为未完成，不得当作已写入。",
     })
     summary_response = await client.chat.completions.create(
         model=model,
@@ -529,7 +529,7 @@ async def run_main_agent_stream(
     summary_response = await client.chat.completions.create(
         model=model,
         messages=[{"role": "system", "content": system_prompt}] + local_messages + [
-            {"role": "user", "content": "请根据已收集到的信息，整理并输出你的分析结果。不要再调用任何工具，直接给出总结；若学习计划文件只生成了部分，请说明已完成与缺失的文件，路径必须写完整相对路径（含 Learning-Factory/ 等目录前缀，不得省略），以便后续继续任务时沿用同一目录。"},
+            {"role": "user", "content": "请根据已收集到的信息，整理并输出你的分析结果。不要再调用任何工具，直接给出总结；若学习计划文件只生成了部分，请说明已完成与缺失的文件，路径必须写完整相对路径（含 Learning-Factory/ 等目录前缀，不得省略），以便后续继续任务时沿用同一目录。已完成与未完成的判定只以工具结果为准：仅工具返回 [成功] 的写入才算已完成，凡工具返回 [错误] 的调用（含被拒绝的写入/追加）一律列为未完成，不得当作已写入。"},
         ],
         tools=None,
         tool_choice=None,
