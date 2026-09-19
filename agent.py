@@ -67,8 +67,10 @@ When a user request matches any skill listed above, you MUST:
 3. Output Phase: you have NO file-writing tools. For each output file dispatch
    `file_writer` (one dispatch per file; the task must give the file's full
    relative path under `Learning-Factory/learning-{tool-name}/` plus its content
-   requirements and the key material from research). Dispatches for different
-   files go in the SAME round. Verify afterwards with `read_file` /
+   requirements and research material in BRIEF form — keep each task short
+   (~800 characters); for a long file, dispatch file_writer again to continue
+   from its previous summary). Dispatches for different files go in the
+   SAME round. Verify afterwards with `read_file` /
    `list_directory`. Skill output MUST stay under
    `Learning-Factory/learning-{tool-name}/` across turns: when continuing
    earlier output, `list_directory` `Learning-Factory/` first and pass the
@@ -180,13 +182,15 @@ async def execute_dispatch(agent_name: str, task: str, sub_prompts: dict) -> str
 # 工具参数不是合法 JSON 时的错误文案（普通版与流式版共用）
 # 设计要点：
 #   1. 只回显前 200 字符——全量回显数千字符的原文既占上下文也无助于定位问题
-#   2. 附带分块写入引导——超长 content 的参数常因 max_tokens 截断或转义错误
-#      而解析失败，引导模型换策略而非以同样方式盲目重试
+#   2. 附带参数缩短引导——超长参数常因 max_tokens 截断或转义错误而解析失败，
+#      引导模型换策略而非以同样方式盲目重试
+#      （P3 后主 Agent 无写入工具：超长素材改为分批 dispatch file_writer，
+#      不再引导主 Agent 直接分块写入）
 MALFORMED_ARGS_MESSAGE = (
     "[错误] 工具参数解析失败（参数前 200 字符）: {raw}\n"
-    "提示：超长 content 常因截断或转义而无法解析。请缩短单次写入的 content，"
-    "改为分块写入：先用 write_file 写入文件开头，再用 append_file 逐块追加"
-    "（每块不超过 1500 字符）。"
+    "提示：超长参数常因截断或转义而无法解析。请把参数大幅缩短后重试："
+    "给 dispatch_to_subagent 的 task 只写目标文件路径与内容要点（几百字符），"
+    "长内容由 file_writer 子 Agent 自行生成；不要在参数里塞长文本。"
 )
 
 

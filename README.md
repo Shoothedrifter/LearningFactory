@@ -99,19 +99,21 @@
 | `repo_structure` | `tools/repo.py` | 获取 GitHub 仓库目录结构 |
 | `repo_read_file` | `tools/repo.py` | 读取 GitHub 仓库文件内容 |
 | `repo_search` | `tools/repo.py` | 搜索仓库文档/issues/commits |
-| `write_file` | `tools/filesystem.py` | 写入本地文件（含路径穿越保护） |
+| `write_file` | `tools/filesystem.py` | 写入本地文件（file_writer 子 Agent 专用，主 Agent 经 dispatch 使用；含路径穿越保护） |
+| `read_file` | `tools/filesystem.py` | 分页读取本地文件（offset/limit 续读） |
 | `list_directory` | `tools/filesystem.py` | 列出目录内容 |
-| `append_file` | `tools/filesystem.py` | 分块追加写入长文档（每块 ≤1500 字符） |
+| `append_file` | `tools/filesystem.py` | 分块追加写入长文档（file_writer 子 Agent 专用，每块 ≤1500 字符） |
 | `load_skill` | `tools/skills.py` | 按需加载技能完整工作流与参考文件 |
 
 ### 工具分配
 
 | Agent | 可用工具 |
 |-------|----------|
-| 主 Agent | `dispatch_to_subagent`, `notion_search`, `notion_append_block`, `write_file`, `list_directory`, `web_search`, `web_fetch` |
+| 主 Agent | `dispatch_to_subagent`, `load_skill`, `notion_search`, `notion_append_block`, `read_file`, `list_directory`, `web_search`, `web_fetch` |
 | docs_researcher | `web_search`, `web_fetch` |
 | repo_analyzer | `web_search`, `web_fetch`, `repo_structure`, `repo_read_file`, `repo_search` |
 | web_researcher | `web_search`, `web_fetch` |
+| file_writer | `write_file`, `append_file`, `read_file`, `list_directory` |
 
 ### MCP 集成
 
