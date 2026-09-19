@@ -39,6 +39,7 @@ SUB_PROMPTS = {
     "docs_researcher": load_prompt("docs_researcher.md"),
     "repo_analyzer": load_prompt("repo_analyzer.md"),
     "web_researcher": load_prompt("web_researcher.md"),
+    "file_writer": load_prompt("file_writer.md"),  # P3：专职写入引擎
 }
 
 # 加载 Skill 并追加到主 Agent 系统提示词

@@ -64,18 +64,17 @@ When a user request matches any skill listed above, you MUST:
    - `repo_analyzer` → repository structure and code
    - `web_researcher` → community content (tutorials, videos, discussions)
    Do NOT skip any subagent. Include the Skill's extraction instructions in each task.
-3. Output Phase: create local files with `write_file` (first chunk) + `append_file`
-   (each chunk ≤ 1500 characters — the tool REJECTS longer content, do not attempt it)
-   under the folder defined by the Skill (e.g. `Learning-Factory/learning-{tool-name}/`).
-   Do NOT use Notion for Skill output. Each round is precious: batch independent writes
-   in the SAME round — multiple `write_file` calls for different files together, and
-   `append_file` calls for different files together. Chunks appending to the SAME file
-   MUST stay sequential across rounds (order matters); different files are parallel-safe.
-   Skill output MUST stay under `Learning-Factory/learning-{tool-name}/` across turns —
-   when continuing earlier output, `list_directory` `Learning-Factory/` first and append
-   to existing files; never create a new folder. Cite output files with
-   full relative paths in final answers.
-   After writing, use `list_directory` to confirm.
+3. Output Phase: you have NO file-writing tools. For each output file dispatch
+   `file_writer` (one dispatch per file; the task must give the file's full
+   relative path under `Learning-Factory/learning-{tool-name}/` plus its content
+   requirements and the key material from research). Dispatches for different
+   files go in the SAME round. Verify afterwards with `read_file` /
+   `list_directory`. Skill output MUST stay under
+   `Learning-Factory/learning-{tool-name}/` across turns: when continuing
+   earlier output, `list_directory` `Learning-Factory/` first and pass the
+   existing file's tail in the file_writer task so it appends rather than
+   rewrites; never create a new folder. Do NOT use Notion for Skill output.
+   Cite output files with full relative paths in final answers.
 """
 
     return "\n\n## Available Skills\n\n" + listing + enforcement
@@ -88,6 +87,7 @@ When a user request matches any skill listed above, you MUST:
 #   2. Notion 工具：直接读写 Notion（对应原版 allowed_tools 中的 notion MCP 工具）
 #
 # 注意：主 Agent 没有 Bash/Repo 工具，这些能力通过子 Agent 间接使用。
+# 注意：主 Agent 也没有写入工具，写入能力由 file_writer 子 Agent 承担（P3）。
 # （与原版设计一致：主 Agent 负责协调，子 Agent 负责执行）
 
 DISPATCH_TOOL_SCHEMA = {
@@ -99,14 +99,16 @@ DISPATCH_TOOL_SCHEMA = {
             "子 Agent 说明：\n"
             "  - docs_researcher：从官方文档中查找信息\n"
             "  - repo_analyzer：分析代码仓库结构和实现细节\n"
-            "  - web_researcher：搜索文章、视频、社区讨论等内容"
+            "  - web_researcher：搜索文章、视频、社区讨论等内容\n"
+            "  - file_writer：把长文档内容分块写入本地文件（专职写入引擎，"
+            "主 Agent 自己没有写入工具，所有文件写入都必须分派给它）"
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "agent_name": {
                     "type": "string",
-                    "enum": ["docs_researcher", "repo_analyzer", "web_researcher"],
+                    "enum": ["docs_researcher", "repo_analyzer", "web_researcher", "file_writer"],
                     "description": "要调用的子 Agent 名称",
                 },
                 "task": {
@@ -119,8 +121,15 @@ DISPATCH_TOOL_SCHEMA = {
     },
 }
 
-# 主 Agent 的完整工具列表：调度子 Agent + 技能加载 + Notion 读写 + 本地文件写入 + 网页搜索
-MAIN_AGENT_TOOLS = [DISPATCH_TOOL_SCHEMA, SKILL_TOOL_SCHEMA] + NOTION_TOOL_SCHEMAS + FILESYSTEM_TOOL_SCHEMAS + WEB_TOOL_SCHEMAS
+# 主 Agent 的完整工具列表：调度子 Agent + 技能加载 + Notion 读写 + 本地文件读取 + 网页搜索
+# 2026-09-19 P3：主 Agent 不再有直接写入工具（实测主模型直写长文档必死循环），
+# write_file/append_file 由 file_writer 子 Agent 独享；主 Agent 保留
+# read_file/list_directory 用于查验产物。
+_MAIN_FS_SCHEMAS = [
+    s for s in FILESYSTEM_TOOL_SCHEMAS
+    if s["function"]["name"] not in ("write_file", "append_file")
+]
+MAIN_AGENT_TOOLS = [DISPATCH_TOOL_SCHEMA, SKILL_TOOL_SCHEMA] + NOTION_TOOL_SCHEMAS + _MAIN_FS_SCHEMAS + WEB_TOOL_SCHEMAS
 
 # 主 Agent 使用能力最强的模型
 MAIN_AGENT_MODEL = "glm-5"
@@ -547,6 +556,7 @@ async def main():
         "docs_researcher": load_prompt("docs_researcher.md"),
         "repo_analyzer":   load_prompt("repo_analyzer.md"),
         "web_researcher":  load_prompt("web_researcher.md"),
+        "file_writer":     load_prompt("file_writer.md"),  # P3：专职写入引擎
     }
 
     # 加载 Skill 并追加到主 Agent 系统提示词
