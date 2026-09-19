@@ -14,8 +14,8 @@ from agents.base import run_agent, run_agent_stream
 from tools import WEB_TOOL_SCHEMAS, REPO_TOOL_SCHEMAS
 
 # 子 Agent 使用更快更便宜的模型
-# glm-4-flash 速度快、成本低，适合执行具体的搜索/分析任务
-_SUB_AGENT_MODEL = "glm-4-flash"
+# glm-5-turbo 速度快、成本低，适合执行具体的搜索/分析任务
+_SUB_AGENT_MODEL = "glm-5-turbo"
 
 
 # ── docs_researcher ────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ async def run_repo_analyzer(task: str, prompt: str) -> str:
     代码仓库分析员：分析代码库结构、示例和实现细节。
     工具：WebSearch + GitHub 仓库工具（repo_structure / repo_read_file / repo_search）
 
-    注意：repo_analyzer 使用 glm-4-plus（而非 glm-4-flash），
+    注意：repo_analyzer 使用 glm-5（而非 glm-5-turbo），
     因为仓库分析需要可靠地调用多个工具并组合结果。
 
     参数:
@@ -59,7 +59,7 @@ async def run_repo_analyzer(task: str, prompt: str) -> str:
         system_prompt=prompt,
         tool_schemas=WEB_TOOL_SCHEMAS + REPO_TOOL_SCHEMAS,  # 搜索 + GitHub 仓库工具
         messages=[{"role": "user", "content": task}],
-        model="glm-4-plus",  # 仓库分析需要更强的模型来可靠调用工具
+        model="glm-5",  # 仓库分析需要更强的模型来可靠调用工具
         agent_name="repo_analyzer",
         max_rounds=15,  # 仓库分析通常需要多轮探索，给予更多轮次
     )
@@ -130,7 +130,7 @@ async def run_repo_analyzer_stream(task: str, prompt: str) -> AsyncGenerator[str
         system_prompt=prompt,
         tool_schemas=WEB_TOOL_SCHEMAS + REPO_TOOL_SCHEMAS,
         messages=[{"role": "user", "content": task}],
-        model="glm-4-plus",
+        model="glm-5",
         agent_name="repo_analyzer",
         max_rounds=15,
     ):

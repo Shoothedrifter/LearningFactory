@@ -31,9 +31,9 @@ def _get_client() -> AsyncOpenAI:
     return _glm_client
 
 # 默认模型，可在调用时覆盖
-# glm-4-plus：推荐用于主 Agent（能力强）
-# glm-4-flash：推荐用于子 Agent（速度快、成本低）
-DEFAULT_MODEL = "glm-4-plus"
+# glm-5：推荐用于主 Agent（能力强）
+# glm-5-turbo：推荐用于子 Agent（速度快、成本低）
+DEFAULT_MODEL = "glm-5"
 
 # 防止无限循环的最大工具调用轮次
 MAX_TOOL_ROUNDS = 10

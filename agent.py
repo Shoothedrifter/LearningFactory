@@ -123,7 +123,7 @@ DISPATCH_TOOL_SCHEMA = {
 MAIN_AGENT_TOOLS = [DISPATCH_TOOL_SCHEMA, SKILL_TOOL_SCHEMA] + NOTION_TOOL_SCHEMAS + FILESYSTEM_TOOL_SCHEMAS + WEB_TOOL_SCHEMAS
 
 # 主 Agent 使用能力最强的模型
-MAIN_AGENT_MODEL = "glm-4-plus"
+MAIN_AGENT_MODEL = "glm-5"
 
 # 主 Agent 工具调用轮次上限（普通版与流式版共用）
 # 模块级常量便于测试中 monkeypatch 缩小轮次来构造耗尽场景
@@ -559,7 +559,7 @@ async def main():
     conversation_history: list[dict] = []
 
     print("=" * 60)
-    print("多智能体系统已启动（glm-4-plus 主Agent / glm-4-flash 子Agent）")
+    print("多智能体系统已启动（glm-5 主Agent / glm-5-turbo 子Agent）")
     print("输入 'exit' 退出，输入 'clear' 清空对话历史")
     print("=" * 60)
 

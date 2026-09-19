@@ -53,7 +53,7 @@
     │
     ▼
 ┌─────────────────────────────────┐
-│  主 Agent (glm-4-plus)          │  分析请求、分派任务、综合结果
+│  主 Agent (glm-5)          │  分析请求、分派任务、综合结果
 │  工具: dispatch / Notion / 文件  │
 └──────────┬──────────────────────┘
            │ dispatch_to_subagent
@@ -61,7 +61,7 @@
            ▼          ▼          ▼          ▼
   ┌────────────┐ ┌──────────┐ ┌──────────┐
   │docs_researcher│ │repo_analyzer│ │web_researcher│
-  │ glm-4-flash │ │glm-4-plus│ │glm-4-flash│
+  │ glm-5-turbo │ │glm-5│ │glm-5-turbo│
   │ Search+Fetch│ │Repo工具  │ │Search+Fetch│
   └────────────┘ └──────────┘ └──────────┘
         │              │             │
@@ -256,10 +256,10 @@ Web 模式下，`POST /chat` 端点以 `text/event-stream` 推送以下事件：
 
 | Agent | 模型 | 配置位置 | 说明 |
 |-------|------|----------|------|
-| 主 Agent | `glm-4-plus` | `agent.py` → `MAIN_AGENT_MODEL` | 需要复杂推理和协调能力 |
-| docs_researcher | `glm-4-flash` | `agents/subagents.py` → `_SUB_AGENT_MODEL` | 搜索任务，速度快成本低 |
-| repo_analyzer | `glm-4-plus` | `agents/subagents.py` → 硬编码 | 仓库分析需要可靠调用多个工具（15 轮上限） |
-| web_researcher | `glm-4-flash` | `agents/subagents.py` → `_SUB_AGENT_MODEL` | 搜索任务，速度快成本低 |
+| 主 Agent | `glm-5` | `agent.py` → `MAIN_AGENT_MODEL` | 需要复杂推理和协调能力 |
+| docs_researcher | `glm-5-turbo` | `agents/subagents.py` → `_SUB_AGENT_MODEL` | 搜索任务，速度快成本低 |
+| repo_analyzer | `glm-5` | `agents/subagents.py` → 硬编码 | 仓库分析需要可靠调用多个工具（15 轮上限） |
+| web_researcher | `glm-5-turbo` | `agents/subagents.py` → `_SUB_AGENT_MODEL` | 搜索任务，速度快成本低 |
 
 API 端点：`https://open.bigmodel.cn/api/paas/v4/`（兼容 OpenAI SDK）
 
@@ -270,8 +270,8 @@ API 端点：`https://open.bigmodel.cn/api/paas/v4/`（兼容 OpenAI SDK）
 | `ClaudeSDKClient` | `agent.py` 中的 `main()` 对话循环 |
 | `ClaudeAgentOptions` | `MAIN_AGENT_TOOLS` + `run_main_agent()` |
 | `AgentDefinition` | `agents/subagents.py` 中各 `run_*` 函数 |
-| `model="sonnet"` | `glm-4-plus` |
-| `model="haiku"` | `glm-4-flash` |
+| `model="sonnet"` | `glm-5` |
+| `model="haiku"` | `glm-5-turbo` |
 | MCP notion 服务器 | `tools/notion.py` 直接调用 Notion REST API |
 | 内置 `WebSearch` 工具 | `tools/web.py` → MCP `web_search_prime` |
 | 内置 `WebFetch` 工具 | `tools/web.py` → MCP `web_reader` |
