@@ -12,6 +12,7 @@ agent.py
 import asyncio
 import json
 import os
+import re
 from pathlib import Path
 from typing import AsyncGenerator
 
@@ -251,6 +252,64 @@ def _screen_same_file_writes(tool_calls) -> dict:
     return blocked
 
 
+# 从 file_writer 任务文本提取目标文件路径：反引号包裹、形似路径
+# （含 / 或带扩展名）的第一个 token（实测 task 形态见 logs/afterfilewriter.txt，
+# 如 "向已有文件 `Learning-Factory/.../learning-path.md` 末尾追加..."）
+_TASK_PATH_PATTERN = re.compile(r"`([^`]+)`")
+
+
+def _extract_dispatch_target_path(task: str):
+    """
+    从 file_writer 任务文本中启发式提取目标文件路径并归一化。
+
+    提取不到返回 None（防线放行，宁放过勿错杀——防误伤无路径 task）。
+    """
+    for candidate in _TASK_PATH_PATTERN.findall(task or ""):
+        if "/" in candidate or Path(candidate).suffix:
+            return str(Path(candidate).resolve())
+    return None
+
+
+def _screen_same_file_dispatches(tool_calls) -> dict:
+    """
+    同轮多 file_writer dispatch 的同文件筛检（确定性防线，2026-09-21）。
+
+    enforcement 的 one-dispatch-per-file 只是指示，实测被违反（同一
+    learning-path.md 同轮发 Level 4/Level 5 两个 dispatch，叠加 429 失败
+    补派导致全文顺序颠倒）。本函数对 file_writer dispatch 按提取到的
+    目标路径去重：同一路径只放行第一次出现，其余回填拦截错误串（不执行），
+    引导合并为单任务后下一轮再派。研究型子 Agent 与提取不到路径的
+    dispatch 不筛。
+
+    返回:
+        {tool_call 在列表中的索引: 拦截错误串}；无冲突返回空 dict。
+    """
+    seen: dict = {}  # resolved path → None（利用 dict 有序性做有序集合）
+    blocked: dict = {}
+    for idx, tc in enumerate(tool_calls):
+        if getattr(tc.function, "name", "") != "dispatch_to_subagent":
+            continue
+        try:
+            fn_args = json.loads(tc.function.arguments)
+        except (json.JSONDecodeError, AttributeError):
+            continue  # 畸形参数走既有 MALFORMED_ARGS_MESSAGE 路径，不在此拦截
+        if fn_args.get("agent_name") != "file_writer":
+            continue
+        key = _extract_dispatch_target_path(fn_args.get("task", ""))
+        if key is None:
+            continue
+        if key in seen:
+            blocked[idx] = (
+                "[错误] 同一轮内有多个 file_writer 任务指向同一文件"
+                f"（{key}）：并发写同一文件顺序未定义、会静默损坏内容。"
+                "本轮已执行其中第一个任务；请把同一文件的全部内容要求"
+                "合并为一个 file_writer 任务，下一轮再派发。"
+            )
+        else:
+            seen[key] = None
+    return blocked
+
+
 async def _blocked_result(result: str, tool_call) -> str:
     """把同轮同文件拦截结果包装成协程并打印日志，便于与真实执行一起 gather。"""
     print(f"  → [拦截] {tool_call.function.name}（同轮同文件，推迟到下一轮）")
@@ -356,8 +415,12 @@ async def run_main_agent(
 
             # 同一轮的多个工具调用并发执行（dispatch 到多个子 Agent 时即真正的并行）
             # 注意：并行时各调用的 print 日志会交错输出，属预期行为
-            # 同轮同文件写先经静态筛检：同一路径只放行第一次出现（确定性防线）
-            blocked = _screen_same_file_writes(msg.tool_calls)
+            # 同轮同文件写筛检 + 同轮同文件 file_writer dispatch 筛检（两道防线合一；
+            # 同一路径只放行第一次出现，同一 tool_call 不可能既带写工具名又是 dispatch）
+            blocked = {
+                **_screen_same_file_writes(msg.tool_calls),
+                **_screen_same_file_dispatches(msg.tool_calls),
+            }
             results = await asyncio.gather(*(
                 _execute_tool_call(tc, sub_prompts) if i not in blocked
                 else _blocked_result(blocked[i], tc)
@@ -538,8 +601,12 @@ async def run_main_agent_stream(
                     )
                     return result
 
-            # 同轮同文件写筛检（与普通版同一防线；被拦调用推送带结果的事件后直接返回）
-            blocked = _screen_same_file_writes(msg.tool_calls)
+            # 同轮同文件写筛检 + 同轮同文件 file_writer dispatch 筛检（两道防线合一；
+            # 同一 tool_call 不可能既带写工具名又是 dispatch，两张表键无冲突）
+            blocked = {
+                **_screen_same_file_writes(msg.tool_calls),
+                **_screen_same_file_dispatches(msg.tool_calls),
+            }
 
             async def _run_or_block(index, tc) -> str:
                 if index in blocked:
