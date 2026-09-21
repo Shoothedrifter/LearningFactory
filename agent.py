@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 from typing import AsyncGenerator
 
+from openai import RateLimitError
 from dotenv import load_dotenv
 
 from agents.base import run_agent
@@ -162,10 +163,25 @@ def _budget_line(round_num: int) -> str:
 # agents/base.py 中的 TOOL_REGISTRY 只包含普通工具（web/bash/notion）。
 # dispatch_to_subagent 是特殊工具，需要访问 prompt，所以在这里单独处理。
 
+# ── dispatch 429 退避重试 ───────────────────────────────────────────────────────
+#
+# 实测（logs/afterfilewriter.txt，2026-09-21）：并行 dispatch 的启动瞬间并发
+# 请求频繁撞 API 速率限制（全程 15+ 次 429），主 Agent 只能消耗轮次逐个补派
+# （8 文件任务光补派耗 7 轮）。这里在 dispatch 执行层做一次固定退避重试。
+# 已知限制：子 Agent 中途轮次撞 429 时重试会从头重跑任务——研究型子 Agent
+# 无副作用；file_writer 的先读后写工作流可缓解大部分场景（接受此权衡，
+# 见计划 Ruling 1）。
+_DISPATCH_MAX_ATTEMPTS = 2            # 初次 + 1 次重试
+_DISPATCH_RETRY_DELAY_SECONDS = 2.0   # 退避时长（测试可 monkeypatch 置 0）
+
+
 async def execute_dispatch(agent_name: str, task: str, sub_prompts: dict) -> str:
     """
     执行 dispatch_to_subagent 工具调用。
-    
+
+    撞到 API 速率限制（openai.RateLimitError）时退避重试一次（2026-09-21）；
+    重试用尽后照常上抛，交由上层既有 except 回填 [错误] 工具结果。
+
     参数:
         agent_name:  目标子 Agent 名称
         task:        任务描述
@@ -174,9 +190,17 @@ async def execute_dispatch(agent_name: str, task: str, sub_prompts: dict) -> str
     runner = SUBAGENT_RUNNERS.get(agent_name)
     if runner is None:
         return f"[错误] 未知子 Agent: {agent_name}"
-    
+
     prompt = sub_prompts.get(agent_name, "你是一个有帮助的助手。")
-    return await runner(task=task, prompt=prompt)
+    for attempt in range(1, _DISPATCH_MAX_ATTEMPTS + 1):
+        try:
+            return await runner(task=task, prompt=prompt)
+        except RateLimitError:
+            if attempt >= _DISPATCH_MAX_ATTEMPTS:
+                raise
+            print(f"  → [重试] {agent_name} 撞到速率限制，"
+                  f"{_DISPATCH_RETRY_DELAY_SECONDS:.0f} 秒后重试...")
+            await asyncio.sleep(_DISPATCH_RETRY_DELAY_SECONDS)
 
 
 # 工具参数不是合法 JSON 时的错误文案（普通版与流式版共用）
@@ -463,20 +487,34 @@ async def run_main_agent_stream(
                         result = f"[错误] 未知子 Agent: {sub_name}"
                     else:
                         sub_results = []
-                        try:
-                            # 消费子 Agent 事件流；单个子 Agent 崩溃只影响自身结果
-                            async for sub_event_str in sub_runner(task=sub_task, prompt=sub_prompt):
-                                await event_queue.put(sub_event_str)  # 实时转发
-                                try:
-                                    sub_event = json.loads(sub_event_str)
-                                    if sub_event.get("type") == "answer":
-                                        sub_results.append(sub_event.get("content", ""))
-                                except (json.JSONDecodeError, AttributeError):
-                                    pass
-                        except Exception as e:
-                            result = f"[错误] 工具执行失败 ({fn_name}): {e}"
-                        else:
-                            result = "\n".join(sub_results) if sub_results else "[子 Agent 未返回结果]"
+                        for attempt in range(1, _DISPATCH_MAX_ATTEMPTS + 1):
+                            try:
+                                # 消费子 Agent 事件流；单个子 Agent 崩溃只影响自身结果
+                                async for sub_event_str in sub_runner(task=sub_task, prompt=sub_prompt):
+                                    await event_queue.put(sub_event_str)  # 实时转发
+                                    try:
+                                        sub_event = json.loads(sub_event_str)
+                                        if sub_event.get("type") == "answer":
+                                            sub_results.append(sub_event.get("content", ""))
+                                    except (json.JSONDecodeError, AttributeError):
+                                        pass
+                            except RateLimitError as e:
+                                # 429 退避重试（与 execute_dispatch 同策略）；
+                                # 半程已转发的事件会随重试重复出现，属可接受的日志噪音
+                                if attempt >= _DISPATCH_MAX_ATTEMPTS:
+                                    result = f"[错误] 工具执行失败 ({fn_name}): {e}"
+                                    break
+                                print(f"  → [重试] {sub_name} 撞到速率限制，"
+                                      f"{_DISPATCH_RETRY_DELAY_SECONDS:.0f} 秒后重试...")
+                                await asyncio.sleep(_DISPATCH_RETRY_DELAY_SECONDS)
+                                sub_results = []  # 丢弃半程结果，重新开始
+                                continue
+                            except Exception as e:
+                                result = f"[错误] 工具执行失败 ({fn_name}): {e}"
+                                break
+                            else:
+                                result = "\n".join(sub_results) if sub_results else "[子 Agent 未返回结果]"
+                                break
 
                     await event_queue.put(_sse("subagent", subagent=sub_name, status="done"))
                     return result
