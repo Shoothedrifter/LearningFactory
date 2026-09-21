@@ -90,9 +90,11 @@ async def run_web_researcher(task: str, prompt: str) -> str:
 
 # ── file_writer ────────────────────────────────────────────────────────────────
 
-# 写入轮次预算：长文档 8-10 块 + 读现状 + 写后验证 + 转义试错余量
+# 写入轮次预算：增量写入 8-10 块 + 读现状 + 写后验证 + 转义试错余量；
+# 全文重写另需通读 5 轮 + 约 25 块 + 验证 4 轮，30 轮实测不够
+# （logs/afterfilewriter.txt：30KB/1029 行重写耗尽两段 dispatch 30+24 轮），升 40
 # （2026-09-19 P3：主 Agent 移除直接写入工具后，长文档写入统一走本引擎）
-_FILE_WRITER_MAX_ROUNDS = 30
+_FILE_WRITER_MAX_ROUNDS = 40
 
 
 async def run_file_writer(task: str, prompt: str) -> str:
