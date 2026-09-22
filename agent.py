@@ -279,9 +279,14 @@ def _screen_same_file_writes(tool_calls) -> dict:
     return blocked
 
 
-# 从 file_writer 任务文本提取目标文件路径：反引号包裹、形似路径
-# （含 / 或带扩展名）的第一个 token（实测 task 形态见 logs/afterfilewriter.txt，
-# 如 "向已有文件 `Learning-Factory/.../learning-path.md` 末尾追加..."）
+# 从 file_writer 任务文本提取目标文件路径，两级启发式：
+#   1) 锚定词（最明确）：文件路径/目标文件/输出文件 + 全/半角冒号后接路径 token
+#      （实测新形态见 logs/after_pytorch.txt :218-224，如
+#       "文件路径: Learning-Factory/.../01-tensor-basics.py 内容: ..."，无反引号）
+#   2) 回退：反引号包裹、形似路径（含 / 或带扩展名）的第一个 token
+#      （实测 task 形态见 logs/afterfilewriter.txt，
+#       如 "向已有文件 `Learning-Factory/.../learning-path.md` 末尾追加..."）
+_TASK_PATH_ANCHOR_PATTERN = re.compile(r"(?:文件路径|目标文件|输出文件)[：:]\s*([^\s，。,；;`]+)")
 _TASK_PATH_PATTERN = re.compile(r"`([^`]+)`")
 
 
@@ -289,8 +294,13 @@ def _extract_dispatch_target_path(task: str):
     """
     从 file_writer 任务文本中启发式提取目标文件路径并归一化。
 
-    提取不到返回 None（防线放行，宁放过勿错杀——防误伤无路径 task）。
+    提取顺序：锚定词（"文件路径:" 等，显式标注最明确）优先，反引号 token 回退。
+    均提取不到返回 None（防线放行，宁放过勿错杀——防误伤无路径 task）。
     """
+    for candidate in _TASK_PATH_ANCHOR_PATTERN.findall(task or ""):
+        candidate = candidate.strip("`")  # 容忍 "文件路径: `X`" 混合形态
+        if "/" in candidate or Path(candidate).suffix:
+            return str(Path(candidate).resolve())
     for candidate in _TASK_PATH_PATTERN.findall(task or ""):
         if "/" in candidate or Path(candidate).suffix:
             return str(Path(candidate).resolve())
