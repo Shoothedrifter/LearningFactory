@@ -12,7 +12,7 @@ import pytest
 
 from helpers import make_rate_limit_error, make_tool_call, make_tool_calls_response, make_text_response
 
-import agent
+from multi_agent import agent
 
 
 async def test_execute_dispatch_retries_once_on_rate_limit(monkeypatch):

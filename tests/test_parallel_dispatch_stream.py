@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 from helpers import ConcurrencyRecorder, make_tool_call, make_tool_calls_response, make_text_response
 
-import agent
+from multi_agent import agent
 
 
 def _dispatch_call(call_id: str, agent_name: str, task: str = "研究任务"):

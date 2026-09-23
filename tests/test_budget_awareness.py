@@ -5,7 +5,7 @@ tests/test_budget_awareness.py
 
 import json
 
-import agent
+from multi_agent import agent
 from helpers import make_text_response, make_tool_call, make_tool_calls_response
 
 

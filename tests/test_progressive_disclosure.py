@@ -3,11 +3,11 @@ tests/test_progressive_disclosure.py
 load_skills 渐进披露重构与 load_skill 工具管线接通的 TDD 测试。
 """
 
-import tools.skills as skills_mod
+from multi_agent.tools import skills as skills_mod
 from helpers import make_tool_call, make_tool_calls_response, make_text_response
-from tools import SKILL_TOOL_SCHEMA
+from multi_agent.tools import SKILL_TOOL_SCHEMA
 
-import agent
+from multi_agent import agent
 
 
 def _make_skill(root, name, description="测试技能", body="# 技能正文 MARKER"):

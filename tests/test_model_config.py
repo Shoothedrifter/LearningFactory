@@ -4,9 +4,9 @@ tests/test_model_config.py
 2026-09-19 从 glm-4-plus / glm-4-flash 迁移到 glm-5 / glm-5-turbo。
 """
 
-import agent
-import agents.base as base
-import agents.subagents as subagents
+from multi_agent import agent
+from multi_agent.agents import base
+from multi_agent.agents import subagents
 
 
 def test_main_agent_model_is_glm5():

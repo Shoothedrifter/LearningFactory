@@ -9,6 +9,6 @@ from pathlib import Path
 
 def test_skill_md_directs_file_writer():
     """输出段指示 dispatch file_writer；旧分块细则文案已移除。"""
-    text = Path("skills/learning-a-tool/SKILL.md").read_text(encoding="utf-8")
+    text = Path("multi_agent/skills/learning-a-tool/SKILL.md").read_text(encoding="utf-8")
     assert "file_writer" in text
     assert "Write the first chunk" not in text  # 旧主 Agent 分块细则已下沉

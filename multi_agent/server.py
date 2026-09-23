@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 # 必须在导入 agent 模块之前加载 .env
 load_dotenv()
 
-from agent import run_main_agent_stream, load_prompt, load_skills
+from .agent import run_main_agent_stream, load_prompt, load_skills
 
 app = FastAPI(title="多智能体系统")
 

@@ -8,7 +8,7 @@ WebSearch 和 WebFetch 工具的具体实现。
 对外接口保持不变（函数签名、tool schema），提示词无需修改。
 """
 
-from tools.mcp_client import call_mcp_tool
+from .mcp_client import call_mcp_tool
 
 # MCP 服务器端点
 _WEB_SEARCH_URL = "https://open.bigmodel.cn/api/mcp/web_search_prime/mcp"

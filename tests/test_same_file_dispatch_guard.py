@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 from helpers import make_tool_call, make_tool_calls_response, make_text_response
 
-import agent
+from multi_agent import agent
 
 TASK_L4 = "向已有文件 `Learning-Factory/learning-transformer/learning-path.md` 末尾追加 Level 4 内容"
 TASK_L5 = "向已有文件 `Learning-Factory/learning-transformer/learning-path.md` 末尾追加 Level 5 内容"

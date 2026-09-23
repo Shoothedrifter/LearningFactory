@@ -13,7 +13,7 @@ import json
 import os
 from typing import AsyncGenerator
 from openai import AsyncOpenAI
-from tools import TOOL_REGISTRY
+from ..tools import TOOL_REGISTRY
 
 # ── GLM 客户端初始化（延迟初始化，避免在 load_dotenv() 之前创建）───────────────
 # 智谱 AI (bigmodel.cn) 完全兼容 OpenAI SDK，只需替换 base_url 和 api_key

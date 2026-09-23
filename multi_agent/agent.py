@@ -20,21 +20,22 @@ from typing import AsyncGenerator
 from openai import RateLimitError
 from dotenv import load_dotenv
 
-from agents.base import run_agent
-from agents.subagents import SUBAGENT_RUNNERS, SUBAGENT_STREAM_RUNNERS
-from tools import NOTION_TOOL_SCHEMAS, WEB_TOOL_SCHEMAS, FILESYSTEM_TOOL_SCHEMAS, TOOL_REGISTRY
-from tools.skills import get_skill_manifest, SKILL_TOOL_SCHEMA
+from .agents.base import run_agent
+from .agents.subagents import SUBAGENT_RUNNERS, SUBAGENT_STREAM_RUNNERS
+from .tools import NOTION_TOOL_SCHEMAS, WEB_TOOL_SCHEMAS, FILESYSTEM_TOOL_SCHEMAS, TOOL_REGISTRY
+from .tools.skills import get_skill_manifest, SKILL_TOOL_SCHEMA
 
 # 加载 .env 文件中的环境变量
 load_dotenv()
 
 # ── Prompt 加载 ────────────────────────────────────────────────────────────────
 
-PROMPTS_DIR = "prompts"
+# 包内绝对路径（与 SKILLS_DIR 同构）：pip 安装后在任意 cwd 运行都能读到提示词
+PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 def load_prompt(filename: str) -> str:
-    """从 prompts/ 目录加载提示词文件（与原项目完全一致）。"""
-    with open(f"{PROMPTS_DIR}/{filename}", "r", encoding="utf-8") as f:
+    """从包内 prompts/ 目录加载提示词文件（cwd 无关，安装后任意目录可用）。"""
+    with open(PROMPTS_DIR / filename, "r", encoding="utf-8") as f:
         return f.read().strip()
 
 

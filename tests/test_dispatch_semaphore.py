@@ -11,7 +11,7 @@ import json
 
 from helpers import make_tool_call, make_tool_calls_response, make_text_response
 
-import agent
+from multi_agent import agent
 
 
 async def test_dispatch_concurrency_capped(monkeypatch):

@@ -8,7 +8,7 @@ GitHub 仓库工具实现：封装 zread MCP 服务器。
   - repo_search:     搜索仓库文档/issues/commits
 """
 
-from tools.mcp_client import call_mcp_tool
+from .mcp_client import call_mcp_tool
 
 # zread MCP 服务器端点
 _ZREAD_URL = "https://open.bigmodel.cn/api/mcp/zread/mcp"

@@ -7,13 +7,13 @@ P3 子 Agent 写入引擎（file_writer）的 TDD 测试。
 import json
 from pathlib import Path
 
-import agents.subagents as subagents_mod
-from tools.filesystem import FILESYSTEM_TOOL_SCHEMAS
+from multi_agent.agents import subagents as subagents_mod
+from multi_agent.tools.filesystem import FILESYSTEM_TOOL_SCHEMAS
 
 
 def test_file_writer_prompt_file_exists():
     """prompts/file_writer.md 存在且承载分块工作流与确定性摘要。"""
-    prompt = Path("prompts/file_writer.md").read_text(encoding="utf-8").strip()
+    prompt = Path("multi_agent/prompts/file_writer.md").read_text(encoding="utf-8").strip()
     assert prompt  # 非空
     assert "1400" in prompt  # 分块安全上限（低于工具 1500 硬限）
     assert "[成功]" in prompt  # 确定性摘要只认工具结果

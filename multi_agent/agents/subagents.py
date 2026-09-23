@@ -10,8 +10,8 @@ agents/subagents.py
 
 from typing import AsyncGenerator
 
-from agents.base import run_agent, run_agent_stream
-from tools import FILESYSTEM_TOOL_SCHEMAS, WEB_TOOL_SCHEMAS, REPO_TOOL_SCHEMAS
+from .base import run_agent, run_agent_stream
+from ..tools import FILESYSTEM_TOOL_SCHEMAS, WEB_TOOL_SCHEMAS, REPO_TOOL_SCHEMAS
 
 # 子 Agent 使用更快更便宜的模型
 # glm-5-turbo 速度快、成本低，适合执行具体的搜索/分析任务
