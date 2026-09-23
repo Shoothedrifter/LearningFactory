@@ -7,9 +7,30 @@ references 参考文件再深一层按需加载——避免技能全文常驻每
 
 from pathlib import Path
 
+import os
+
 # Skill 根目录（项目根 skills/；2026-09-23 由 .claude/skills 迁出——独立 CLI 发布
 # 不借用 Claude Code 的目录约定，避免外部用户认知混淆）
 SKILLS_DIR = Path(__file__).parent.parent / "skills"
+
+
+def get_output_root_dir() -> str:
+    """
+    技能产物输出根目录：环境变量 MULTI_AGENT_OUTPUT_DIR 可覆盖（CLI
+    --output-dir 的落地通道），默认 Learning-Factory。
+
+    enforcement、兜底文案与技能文本（load_skill）三处共用此取值，
+    保证模型在任一通道看到的目录指示一致。
+    """
+    return os.environ.get("MULTI_AGENT_OUTPUT_DIR", "Learning-Factory")
+
+
+def _apply_output_root(text: str) -> str:
+    """自定义输出根目录时替换技能文本中的默认目录（与 enforcement 注入一致）。"""
+    root = get_output_root_dir()
+    if root != "Learning-Factory":
+        return text.replace("Learning-Factory", root)
+    return text
 
 
 def _parse_frontmatter(text: str) -> dict:
@@ -108,7 +129,7 @@ async def load_skill(skill_name: str, reference: str = None) -> str:
         if not ref_file.exists() or ref_file.suffix != ".md":
             available = _list_reference_files(skill_dir)
             return f"[错误] 未知参考文件: {reference}（可用: {', '.join(available) or '无'}）"
-        return ref_file.read_text(encoding="utf-8").strip()
+        return _apply_output_root(ref_file.read_text(encoding="utf-8").strip())
 
     # 第二层：返回 SKILL.md 全文 + 参考文件指引
     content = (skill_dir / "SKILL.md").read_text(encoding="utf-8").strip()
@@ -119,7 +140,7 @@ async def load_skill(skill_name: str, reference: str = None) -> str:
             "# 可按需加载的参考文件（用 load_skill 的 reference 参数读取）：\n"
             + "\n".join(f"- {name}" for name in refs)
         )
-    return content
+    return _apply_output_root(content)
 
 
 # ── Tool Schema ────────────────────────────────────────────────────────────────

@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 from .agents.base import run_agent
 from .agents.subagents import SUBAGENT_RUNNERS, SUBAGENT_STREAM_RUNNERS
 from .tools import NOTION_TOOL_SCHEMAS, WEB_TOOL_SCHEMAS, FILESYSTEM_TOOL_SCHEMAS, TOOL_REGISTRY
-from .tools.skills import get_skill_manifest, SKILL_TOOL_SCHEMA
+from .tools.skills import get_skill_manifest, SKILL_TOOL_SCHEMA, get_output_root_dir
 
 # 加载 .env 文件中的环境变量
 load_dotenv()
@@ -57,7 +57,11 @@ def load_skills() -> str:
     # 技能清单：每行 "name: description"（模型据此判断是否匹配用户请求）
     listing = "\n".join(f"- {item['name']}: {item['description']}" for item in manifest)
 
-    enforcement = """
+    # 输出根目录可经环境变量覆盖（CLI --output-dir 通道）；{tool-name} 为
+    # 字面占位符，f-string 中需转义为 {{tool-name}}
+    output_root = get_output_root_dir()
+
+    enforcement = f"""
 
 ## Skill Execution Rules (MANDATORY)
 
@@ -70,14 +74,14 @@ When a user request matches any skill listed above, you MUST:
    Do NOT skip any subagent. Include the Skill's extraction instructions in each task.
 3. Output Phase: you have NO file-writing tools. For each output file dispatch
    `file_writer` (one dispatch per file; the task must give the file's full
-   relative path under `Learning-Factory/learning-{tool-name}/` plus its content
+   relative path under `{output_root}/learning-{{tool-name}}/` plus its content
    requirements and research material in BRIEF form — keep each task short
    (~800 characters); for a long file, dispatch file_writer again to continue
    from its previous summary). Dispatches for different files go in the
    SAME round. Verify afterwards with `read_file` /
    `list_directory`. Skill output MUST stay under
-   `Learning-Factory/learning-{tool-name}/` across turns: when continuing
-   earlier output, `list_directory` `Learning-Factory/` first and pass the
+   `{output_root}/learning-{{tool-name}}/` across turns: when continuing
+   earlier output, `list_directory` `{output_root}/` first and pass the
    existing file's tail in the file_writer task so it appends rather than
    rewrites; never create a new folder. Do NOT use Notion for Skill output.
    Cite output files with full relative paths in final answers.
@@ -480,7 +484,7 @@ async def run_main_agent(
     print(f"\n[主 Agent] 达到最大轮次 ({MAX_ROUNDS})，请求模型总结已有信息...")
     local_messages.append({
         "role": "user",
-        "content": "已达到最大工具调用轮次。请不要再调用任何工具，直接基于以上已获得的全部信息输出最终回答；若学习计划文件只生成了部分，请说明已完成与缺失的文件，路径必须写完整相对路径（含 Learning-Factory/ 等目录前缀，不得省略），以便后续继续任务时沿用同一目录。已完成与未完成的判定只以工具结果为准：仅工具返回 [成功] 的写入才算已完成，凡工具返回 [错误] 的调用（含被拒绝的写入/追加）一律列为未完成，不得当作已写入。",
+        "content": f"已达到最大工具调用轮次。请不要再调用任何工具，直接基于以上已获得的全部信息输出最终回答；若学习计划文件只生成了部分，请说明已完成与缺失的文件，路径必须写完整相对路径（含 {get_output_root_dir()}/ 等目录前缀，不得省略），以便后续继续任务时沿用同一目录。已完成与未完成的判定只以工具结果为准：仅工具返回 [成功] 的写入才算已完成，凡工具返回 [错误] 的调用（含被拒绝的写入/追加）一律列为未完成，不得当作已写入。",
     })
     summary_response = await client.chat.completions.create(
         model=model,
@@ -687,7 +691,7 @@ async def run_main_agent_stream(
     summary_response = await client.chat.completions.create(
         model=model,
         messages=[{"role": "system", "content": system_prompt}] + local_messages + [
-            {"role": "user", "content": "请根据已收集到的信息，整理并输出你的分析结果。不要再调用任何工具，直接给出总结；若学习计划文件只生成了部分，请说明已完成与缺失的文件，路径必须写完整相对路径（含 Learning-Factory/ 等目录前缀，不得省略），以便后续继续任务时沿用同一目录。已完成与未完成的判定只以工具结果为准：仅工具返回 [成功] 的写入才算已完成，凡工具返回 [错误] 的调用（含被拒绝的写入/追加）一律列为未完成，不得当作已写入。"},
+            {"role": "user", "content": f"请根据已收集到的信息，整理并输出你的分析结果。不要再调用任何工具，直接给出总结；若学习计划文件只生成了部分，请说明已完成与缺失的文件，路径必须写完整相对路径（含 {get_output_root_dir()}/ 等目录前缀，不得省略），以便后续继续任务时沿用同一目录。已完成与未完成的判定只以工具结果为准：仅工具返回 [成功] 的写入才算已完成，凡工具返回 [错误] 的调用（含被拒绝的写入/追加）一律列为未完成，不得当作已写入。"},
         ],
         tools=None,
         tool_choice=None,
