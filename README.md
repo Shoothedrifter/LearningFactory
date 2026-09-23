@@ -34,12 +34,11 @@
 ├── static/
 │   └── index.html              # Web 聊天前端（SSE 消费 + Markdown 渲染 + 过程可视化）
 │
-├── .claude/
-│   └── skills/
-│       └── learning-a-tool/    # Skill 定义：编程工具学习路径生成
-│           ├── SKILL.md        #   工作流定义（研究 → 结构 → 输出）
-│           └── references/
-│               └── progressive-learning.md  # 渐进式学习框架（5 个层级）
+├── skills/
+│   └── learning-a-tool/    # Skill 定义：编程工具学习路径生成
+│       ├── SKILL.md        #   工作流定义（研究 → 结构 → 输出）
+│       └── references/
+│           └── progressive-learning.md  # 渐进式学习框架（5 个层级）
 │
 ├── requirements.txt            # Python 依赖
 └── .env                        # 环境变量（API 密钥）
@@ -133,7 +132,7 @@ MCP 调用使用 `GLM_API_KEY` 进行认证，无需额外配置。
 
 ### Skill 系统
 
-`.claude/skills/` 目录支持技能，采用**渐进披露**机制：系统提示词只注入技能清单（frontmatter 的 name + description，几百字符），主 Agent 判断用户请求匹配某技能后，通过 `load_skill` 工具按需加载 SKILL.md 完整工作流，`references/` 参考文件再用 `reference` 参数按需读取——技能全文不再常驻每轮请求的上下文。
+`skills/` 目录支持技能，采用**渐进披露**机制：系统提示词只注入技能清单（frontmatter 的 name + description，几百字符），主 Agent 判断用户请求匹配某技能后，通过 `load_skill` 工具按需加载 SKILL.md 完整工作流，`references/` 参考文件再用 `reference` 参数按需读取——技能全文不再常驻每轮请求的上下文。
 
 注：技能全文不常驻对话——多轮会话中每轮需要时可再次调用 `load_skill` 按需加载。
 
@@ -286,7 +285,7 @@ API 端点：`https://open.bigmodel.cn/api/paas/v4/`（兼容 OpenAI SDK）
 | 内置 `Bash` 工具 | `tools/bash.py` → asyncio.subprocess |
 | — | `tools/repo.py` → MCP `zread`（新增） |
 | — | `tools/filesystem.py`（新增，Skill 输出用） |
-| — | `.claude/skills/` Skill 系统（新增） |
+| — | `skills/` Skill 系统（新增） |
 
 ## 开发与测试
 

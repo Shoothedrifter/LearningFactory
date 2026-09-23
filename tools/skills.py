@@ -7,9 +7,9 @@ references 参考文件再深一层按需加载——避免技能全文常驻每
 
 from pathlib import Path
 
-# Skill 根目录（沿用 .claude/skills 路径以保持与 Claude Code 的目录约定巧合兼容；
-# 对本项目运行时而言只是普通路径，无框架语义）
-SKILLS_DIR = Path(__file__).parent.parent / ".claude" / "skills"
+# Skill 根目录（项目根 skills/；2026-09-23 由 .claude/skills 迁出——独立 CLI 发布
+# 不借用 Claude Code 的目录约定，避免外部用户认知混淆）
+SKILLS_DIR = Path(__file__).parent.parent / "skills"
 
 
 def _parse_frontmatter(text: str) -> dict:
