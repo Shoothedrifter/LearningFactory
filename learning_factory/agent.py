@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 from .agents.base import run_agent
 from .agents.subagents import SUBAGENT_RUNNERS, SUBAGENT_STREAM_RUNNERS
 from .config import get_glm_base_url, get_main_agent_model, get_sub_agent_model
+from .session import new_session_path, append_message, load_session, latest_session_path
 from .tools import NOTION_TOOL_SCHEMAS, WEB_TOOL_SCHEMAS, FILESYSTEM_TOOL_SCHEMAS, TOOL_REGISTRY
 from .tools.skills import get_skill_manifest, SKILL_TOOL_SCHEMA, get_output_root_dir
 
@@ -747,8 +748,22 @@ async def main(resume=None):
         main_agent_prompt += "\n\n" + skills_prompt
         print(f"[系统] 已加载 Skill 配置")
 
-    # 对话历史（多轮对话在这里积累）
-    conversation_history: list[dict] = []
+    # 会话装载（ensure_api_key 之后、横幅之前）：
+    # --resume 带路径则恢复指定文件，"latest" 恢复最近一次；恢复失败开新会话
+    if resume:
+        rpath = Path(resume) if resume != "latest" else latest_session_path()
+        restored = load_session(rpath) if rpath and rpath.exists() else None
+        if restored:
+            conversation_history = restored
+            session_path = rpath
+            print(f"[系统] 已恢复会话 {rpath.name}（{len(restored)} 条消息）")
+        else:
+            conversation_history = []
+            session_path = new_session_path()
+            print("[系统] 未找到可恢复的会话，已开启新会话")
+    else:
+        conversation_history = []
+        session_path = new_session_path()
 
     print("=" * 60)
     print(f"多智能体系统已启动（{get_main_agent_model()} 主Agent / {get_sub_agent_model()} 子Agent）")
@@ -771,11 +786,14 @@ async def main(resume=None):
 
         if user_input.lower() == "clear":
             conversation_history.clear()
+            session_path = new_session_path()  # 旧会话文件保留，新轮次写入新文件
             print("[对话历史已清空]")
             continue
 
-        # 把用户消息加入对话历史
-        conversation_history.append({"role": "user", "content": user_input})
+        # 把用户消息加入对话历史，并逐轮落盘（崩溃也保留已写轮次）
+        user_message = {"role": "user", "content": user_input}
+        conversation_history.append(user_message)
+        append_message(session_path, user_message)
 
         print("\n\033[1mAssistant\033[0m: ", end="", flush=True)
 
@@ -788,8 +806,10 @@ async def main(resume=None):
             )
             print(answer)
 
-            # 把 Assistant 的回答加入对话历史（支持多轮）
-            conversation_history.append({"role": "assistant", "content": answer})
+            # 把 Assistant 的回答加入对话历史（支持多轮），并落盘
+            assistant_message = {"role": "assistant", "content": answer}
+            conversation_history.append(assistant_message)
+            append_message(session_path, assistant_message)
 
         except Exception as e:
             error_msg = f"[系统错误] {e}"
@@ -815,10 +835,14 @@ def run_cli():
         default=None,
         help="技能产物输出根目录（默认 Learning-Factory；等价环境变量 LEARNING_FACTORY_OUTPUT_DIR）",
     )
+    parser.add_argument(
+        "--resume", nargs="?", const="latest", default=None, metavar="会话文件",
+        help="恢复会话：不带参数恢复最近一次，或指定 .jsonl 文件路径",
+    )
     args = parser.parse_args()
     if args.output_dir:
         os.environ["LEARNING_FACTORY_OUTPUT_DIR"] = args.output_dir
-    asyncio.run(main())
+    asyncio.run(main(resume=args.resume))
 
 
 if __name__ == "__main__":
