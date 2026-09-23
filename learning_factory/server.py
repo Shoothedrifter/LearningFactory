@@ -3,9 +3,9 @@ server.py
 FastAPI Web 服务：通过 SSE 流式推送 Agent 中间过程和最终答案。
 
 启动方式：
-    python server.py
+    python -m learning_factory.server
     或
-    uvicorn server:app --host 0.0.0.0 --port 8000
+    uvicorn learning_factory.server:app --host 0.0.0.0 --port 8000
 """
 
 import asyncio

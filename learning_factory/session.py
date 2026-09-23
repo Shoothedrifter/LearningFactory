@@ -24,13 +24,17 @@ def append_message(path: Path, message: dict) -> None:
 
 
 def load_session(path: Path) -> list:
-    """读取会话全部消息；损坏行跳过（手编文件容错）。"""
+    """读取会话全部消息；损坏行与非消息行跳过（手编文件容错）。"""
     if not path.exists():
         return []
     messages = []
     for line in path.read_text(encoding="utf-8").splitlines():
         try:
-            messages.append(json.loads(line))
+            obj = json.loads(line)
+            # 只收消息形态的行（dict 且含 role），其余合法 JSON（数字/字符串/空
+            # dict 等）静默跳过——否则 resume 时在 [-1]["role"] 处崩溃
+            if isinstance(obj, dict) and "role" in obj:
+                messages.append(obj)
         except json.JSONDecodeError:
             continue
     return messages

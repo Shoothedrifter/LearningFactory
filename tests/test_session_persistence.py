@@ -31,6 +31,22 @@ def test_load_skips_corrupt_lines(tmp_path, monkeypatch):
         {"role": "assistant", "content": "b"},
     ]
 
+def test_load_skips_non_message_lines(tmp_path, monkeypatch):
+    """合法 JSON 但非消息形态（数字/空 dict/字符串）的行静默跳过。
+
+    手编或损坏的会话文件混入这类行时，不能进入 messages——
+    否则 resume 时在 conversation_history[-1]["role"] 处崩溃。
+    """
+    monkeypatch.setattr(session, "SESSIONS_DIR", tmp_path)
+    path = session.new_session_path()
+    session.append_message(path, {"role": "user", "content": "a"})
+    path.write_text(path.read_text() + "123\n{}\n\"x\"\n", encoding="utf-8")
+    session.append_message(path, {"role": "assistant", "content": "b"})
+    assert session.load_session(path) == [
+        {"role": "user", "content": "a"},
+        {"role": "assistant", "content": "b"},
+    ]
+
 def test_latest_session_picks_newest(tmp_path, monkeypatch):
     monkeypatch.setattr(session, "SESSIONS_DIR", tmp_path)
     assert session.latest_session_path() is None            # 空目录

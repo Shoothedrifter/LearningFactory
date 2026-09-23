@@ -39,7 +39,7 @@ async def run_agent(
     system_prompt: str,
     tool_schemas: list,
     messages: list,
-    model: str = None,
+    model: str | None = None,
     agent_name: str = "Agent",
     max_rounds: int = MAX_TOOL_ROUNDS,
 ) -> str:
@@ -50,7 +50,8 @@ async def run_agent(
         system_prompt:  该 Agent 的系统提示词（定义角色和行为）
         tool_schemas:   该 Agent 可用的工具定义列表（OpenAI function calling 格式）
         messages:       对话历史（[{"role": "user", "content": "..."}, ...]）
-        model:          使用的 GLM 模型名称
+        model:          使用的 GLM 模型名称；None 时运行时经 config 层取默认
+                        （主 Agent 层 GLM_MAIN_MODEL）
         agent_name:     用于日志输出的 Agent 名称
         max_rounds:     最大工具调用轮次（默认 MAX_TOOL_ROUNDS）
 
@@ -164,12 +165,14 @@ async def run_agent_stream(
     system_prompt: str,
     tool_schemas: list,
     messages: list,
-    model: str = None,
+    model: str | None = None,
     agent_name: str = "Agent",
     max_rounds: int = MAX_TOOL_ROUNDS,
 ) -> AsyncGenerator[str, None]:
     """
     流式版本的 Agent Loop：通过 yield 推送 SSE 事件。
+
+    model 为 None 时运行时经 config 层取默认（主 Agent 层 GLM_MAIN_MODEL）。
 
     事件类型:
         status    — 状态更新（开始、轮次等）

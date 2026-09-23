@@ -409,11 +409,13 @@ async def run_main_agent(
     system_prompt: str,
     messages: list,
     sub_prompts: dict,
-    model: str = None,
+    model: str | None = None,
 ) -> str:
     """
     主 Agent Loop，在 base.run_agent 基础上增加对 dispatch_to_subagent 的处理。
     其余工具（notion/web）直接走 TOOL_REGISTRY。
+
+    model 为 None 时运行时经 config 层取默认（主 Agent 层 GLM_MAIN_MODEL）。
     """
     # 默认模型延迟到调用时从配置层读取（env 可覆盖，测试可 monkeypatch）
     model = model or get_main_agent_model()
@@ -513,10 +515,12 @@ async def run_main_agent_stream(
     system_prompt: str,
     messages: list,
     sub_prompts: dict,
-    model: str = None,
+    model: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """
     主 Agent 的流式版本：通过 yield 推送 SSE 事件。
+
+    model 为 None 时运行时经 config 层取默认（主 Agent 层 GLM_MAIN_MODEL）。
 
     事件类型:
         status    — 状态更新
@@ -741,9 +745,13 @@ def render_event(event: dict):
     if etype == "subagent":
         name = event.get("subagent", "unknown")
         if event.get("status") == "start":
-            task = (event.get("task") or "")[:50]
+            # 换行/连续空白压成单空格，行式输出不被打乱
+            task = " ".join((event.get("task") or "").split())[:50]
             return f"  ▶ [{name}] {task}"
-        return f"  ✔ [{name}] 完成"
+        # done 行仅在 status == done 时返回；未知 status 不渲染（防御误显示为完成）
+        if event.get("status") == "done":
+            return f"  ✔ [{name}] 完成"
+        return None
     if etype == "tool_call":
         return f"  · {event.get('tool', '?')}(...)"
     if etype == "error":

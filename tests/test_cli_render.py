@@ -18,6 +18,22 @@ def test_subagent_done_line():
     line = render_event({"type": "subagent", "subagent": "file_writer", "status": "done"})
     assert line is not None and "file_writer" in line
 
+def test_subagent_start_task_newline_collapsed():
+    """task 含换行/连续空白压成单空格，渲染结果仍是单行。"""
+    line = render_event({"type": "subagent", "subagent": "docs_researcher",
+                         "status": "start", "task": "查文档\n换行后半段"})
+    assert line is not None
+    assert "\n" not in line
+    assert "查文档 换行后半段" in line
+
+def test_subagent_unknown_status_renders_nothing():
+    """status 为未知值（如 error）的 subagent 事件不渲染。
+
+    防御未来新增状态被误渲染为「完成」；done 行仅在 status == done 时返回。
+    """
+    assert render_event({"type": "subagent", "subagent": "docs_researcher",
+                         "status": "error"}) is None
+
 def test_tool_call_line():
     line = render_event({"type": "tool_call", "agent": "main",
                          "tool": "web_search", "args": {"query": "asyncio semaphore"}})
