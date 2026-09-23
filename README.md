@@ -42,7 +42,7 @@
 │           └── references/
 │               └── progressive-learning.md  # 渐进式学习框架（5 个层级）
 │
-├── tests/                      # pytest 测试（96 项，全 mock 无需真实 API Key）
+├── tests/                      # pytest 测试（118 项，全 mock 无需真实 API Key）
 ├── pyproject.toml              # 打包与依赖真相（入口点 learning-factory、requires-python>=3.11）
 ├── requirements.txt            # git clone 直跑场景的依赖清单（版本以 pyproject.toml 为准）
 └── .env                        # 环境变量（API 密钥，从 .env.example 复制）
@@ -132,7 +132,7 @@
 | `web_reader` | `open.bigmodel.cn/api/mcp/web_reader/mcp` | 网页内容抓取 |
 | `zread` | `open.bigmodel.cn/api/mcp/zread/mcp` | GitHub 仓库读取 |
 
-MCP 调用使用 `GLM_API_KEY` 进行认证，无需额外配置。
+MCP 调用使用 `GLM_API_KEY` 进行认证，无需额外配置。上表为默认端点（智谱官方），可通过 `GLM_MCP_WEB_SEARCH_URL` / `GLM_MCP_WEB_READER_URL` / `GLM_MCP_ZREAD_URL` 覆盖（见[环境变量配置表](#环境变量配置表)）。
 
 ### Skill 系统
 
@@ -213,7 +213,7 @@ pip install -e ".[web,dev]"            # 可编辑安装 + Web/开发可选依�
 
 ### 2. 配置环境变量
 
-创建 `.env` 文件（可参考 `.env.example`）：
+在**运行目录**创建 `.env` 文件（可参考 `.env.example`）——程序只加载运行目录下的 `.env`，不做向上查找，因此在其他目录运行时请在该目录放置 `.env` 或直接导出环境变量：
 
 ```env
 # 智谱 AI API Key（必需）
@@ -224,6 +224,10 @@ GLM_API_KEY="your-api-key-here"
 # 获取地址：https://www.notion.so/my-integrations
 NOTION_TOKEN="your-notion-token-here"
 ```
+
+也可以不建 `.env`，直接导出环境变量：`export GLM_API_KEY="你的密钥"`。
+
+`GLM_API_KEY` 未配置时，CLI/Web 启动即打印获取与配置指引（stderr）并以退出码 1 退出，不会等到首次 API 调用才报错。全部环境变量（含 7 个可选 `GLM_*` 覆盖项）见下方[环境变量配置表](#环境变量配置表)。
 
 > **注意**：网页搜索、网页抓取、GitHub 仓库分析工具通过智谱 MCP 服务器提供，使用 `GLM_API_KEY` 认证，无需额外配置 Serper 等第三方 API Key。
 
@@ -239,8 +243,11 @@ python -m learning_factory.agent
 
 - 输入 `exit` 退出
 - 输入 `clear` 清空对话历史
-- 支持多轮对话，对话历史保存在内存中
+- 支持多轮对话，对话历史逐轮落盘（见[会话持久化](#会话持久化cli)）
+- `--resume`：恢复上次会话；不带参数恢复最近一次会话，或指定会话文件路径 `--resume ~/.learning_factory/sessions/<文件>.jsonl`
 - `--output-dir <目录>`：技能产物输出根目录（默认 `Learning-Factory/`；等价环境变量 `LEARNING_FACTORY_OUTPUT_DIR`，enforcement/兜底文案/技能文本四通道一致注入）
+- 过程实时渲染：子 Agent 启动/完成（`▶`/`✔`）与工具调用（`·`）逐行打印，主 Agent 最终答案整段输出
+- `GLM_API_KEY` 未配置时启动即打印获取与配置指引并以退出码 1 退出
 
 **Web 模式（浏览器访问）：**
 
@@ -277,17 +284,39 @@ Web 模式下，`POST /chat` 端点以 `text/event-stream` 推送以下事件：
 
 会话存储在内存中，服务器重启后清空。
 
-## 模型配置
+## 环境变量配置表
 
-| Agent | 模型 | 配置位置 | 说明 |
+GLM 端点与模型配置集中在 `learning_factory/config.py` 读取，环境变量可覆盖；均可写进运行目录的 `.env`（参考 `.env.example`）或直接导出。
+
+| 环境变量 | 必需 | 默认值 | 用途 |
+|----------|------|--------|------|
+| `GLM_API_KEY` | 是 | —（未配置则启动即退出） | GLM API 密钥，同时用于 MCP 认证 |
+| `GLM_BASE_URL` | 否 | `https://open.bigmodel.cn/api/paas/v4/` | GLM OpenAI 兼容端点（自建代理/兼容网关时覆盖） |
+| `GLM_MAIN_MODEL` | 否 | `glm-5` | 主 Agent 模型 |
+| `GLM_SUB_MODEL` | 否 | `glm-5-turbo` | 子 Agent 通用模型（docs_researcher / web_researcher / file_writer） |
+| `GLM_REPO_MODEL` | 否 | `glm-5` | repo_analyzer 专用模型 |
+| `GLM_MCP_WEB_SEARCH_URL` | 否 | `https://open.bigmodel.cn/api/mcp/web_search_prime/mcp` | MCP 网页搜索端点 |
+| `GLM_MCP_WEB_READER_URL` | 否 | `https://open.bigmodel.cn/api/mcp/web_reader/mcp` | MCP 网页抓取端点 |
+| `GLM_MCP_ZREAD_URL` | 否 | `https://open.bigmodel.cn/api/mcp/zread/mcp` | MCP GitHub 仓库读取端点 |
+
+各 Agent 使用的模型（默认值，均可用上表环境变量调整）：
+
+| Agent | 模型 | 覆盖变量 | 说明 |
 |-------|------|----------|------|
-| 主 Agent | `glm-5` | `learning_factory/agent.py` → `MAIN_AGENT_MODEL` | 需要复杂推理和协调能力 |
-| docs_researcher | `glm-5-turbo` | `learning_factory/agents/subagents.py` → `_SUB_AGENT_MODEL` | 搜索任务，速度快成本低 |
-| repo_analyzer | `glm-5` | `learning_factory/agents/subagents.py` → 硬编码 | 仓库分析需要可靠调用多个工具（15 轮上限） |
-| web_researcher | `glm-5-turbo` | `learning_factory/agents/subagents.py` → `_SUB_AGENT_MODEL` | 搜索任务，速度快成本低 |
-| file_writer | `glm-5-turbo` | `learning_factory/agents/subagents.py` → `_SUB_AGENT_MODEL` | 分块写入任务（40 轮预算），速度快成本低 |
+| 主 Agent | `glm-5` | `GLM_MAIN_MODEL` | 需要复杂推理和协调能力 |
+| docs_researcher | `glm-5-turbo` | `GLM_SUB_MODEL` | 搜索任务，速度快成本低 |
+| repo_analyzer | `glm-5` | `GLM_REPO_MODEL` | 仓库分析需要可靠调用多个工具（15 轮上限） |
+| web_researcher | `glm-5-turbo` | `GLM_SUB_MODEL` | 搜索任务，速度快成本低 |
+| file_writer | `glm-5-turbo` | `GLM_SUB_MODEL` | 分块写入任务（40 轮预算），速度快成本低 |
 
-API 端点：`https://open.bigmodel.cn/api/paas/v4/`（兼容 OpenAI SDK）
+## 会话持久化（CLI）
+
+CLI 模式的对话历史逐轮追加落盘到家目录 `~/.learning_factory/sessions/`（JSONL 格式，一行一条消息，立即写盘不留缓冲），进程崩溃也保留已写轮次。家目录固定，不随运行目录变化（pipx 场景在任意 cwd 启动都写到同处）。
+
+- `--resume`：恢复最近一次会话（按文件名时间序取最新）
+- `--resume <文件路径>`：恢复指定的 `.jsonl` 会话文件
+- 恢复时自动裁掉尾部连续的未回应消息；找不到可恢复会话时开启新会话
+- 输入 `clear` 清空对话历史时会开启新会话文件，旧会话文件保留
 
 ## 与原版的对应关系
 
@@ -313,7 +342,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-测试覆盖（90 项）：同轮多工具并行执行与消息协议完整性（tool_call_id 顺序回填、单工具失败隔离）、
+测试覆盖（118 项）：同轮多工具并行执行与消息协议完整性（tool_call_id 顺序回填、单工具失败隔离）、
 分块写入硬限制（1500 字符）与覆盖防线、同轮同文件写/dispatch 双防线（路径两级启发式提取）、
 dispatch 429 退避重试与并发节流（信号量）、Skill 渐进披露三层加载、模型配置钉住等。
 
@@ -322,6 +351,6 @@ dispatch 429 退避重试与并发节流（信号量）、Skill 渐进披露三�
 - `learning_factory/prompts/` 目录下的 5 个 `.md` 文件中，4 个研究/协调提示词直接复用原项目，`file_writer.md` 为本项目新增
 - Notion 集成从 MCP 改为直接 REST API，功能等价（search + append block）
 - Bash 工具会在本机执行命令，请确保在可信环境中运行
-- Web 模式的会话存储在内存中，不支持持久化
+- Web 模式的会话存储在内存中，不支持持久化（CLI 模式支持，见[会话持久化](#会话持久化cli)）
 - `Learning-Factory/` 下的 `learning-pytorch/` 等目录是 Skill 系统生成的输出产物（在 `.gitignore` 中，不入库）
 - `.env` 文件包含 API 密钥，不应提交到版本控制
