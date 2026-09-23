@@ -2,7 +2,6 @@ docs/superpowers/
 .env
 __pycache__/
 *.pyc
-tests/
 .pytest_cache
 Learning-Factory
 logs
