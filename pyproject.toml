@@ -1,0 +1,46 @@
+# pyproject.toml —— "人人可安装"链路的依赖与入口真相
+# 安装：pipx install .（推荐，隔离环境）/ pip install .
+# 开发：pip install -e ".[web,dev]"（本仓库 clone 后的等价方式）
+# 旧 requirements*.txt 仍保留（CI 与 git clone 直跑场景），依赖版本以本文件为准。
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "multi-agent"
+version = "0.1.0"
+description = "GLM 多智能体协作研究系统：主 Agent 调度 docs/repo/web/file_writer 四个子 Agent 完成工具学习、研究与长文档写入"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Noodle" }]
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=1.30.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+    "mcp>=1.0.0,<2",
+    "beautifulsoup4>=4.12.0",
+]
+
+[project.optional-dependencies]
+# Web 界面（multi_agent/server.py）为可选运行模式，CLI 用户无需安装
+web = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.0",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+multi-agent = "multi_agent.agent:run_cli"
+
+[tool.setuptools.packages.find]
+include = ["multi_agent*"]
+
+[tool.setuptools.package-data]
+# 提示词/技能/静态页随包分发（load_prompt/SKILLS_DIR/STATIC_DIR 均按包内路径读取）
+multi_agent = ["prompts/*.md", "skills/**/*.md", "static/*.html"]
