@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 import re
+import sys
 import weakref
 from pathlib import Path
 from typing import AsyncGenerator
@@ -27,8 +28,11 @@ from .config import get_glm_base_url, get_main_agent_model, get_sub_agent_model
 from .tools import NOTION_TOOL_SCHEMAS, WEB_TOOL_SCHEMAS, FILESYSTEM_TOOL_SCHEMAS, TOOL_REGISTRY
 from .tools.skills import get_skill_manifest, SKILL_TOOL_SCHEMA, get_output_root_dir
 
-# 加载 .env 文件中的环境变量
-load_dotenv()
+# 加载 .env 文件中的环境变量。
+# 只认运行目录（cwd）下的 .env：与启动指引"在运行目录创建 .env"的文案保持一致——
+# 无参 load_dotenv() 会按包所在目录向上查找，editable 开发装会误读仓库 .env，
+# pipx 等正式安装下用户按指引创建的 .env 则根本读不到。
+load_dotenv(Path.cwd() / ".env")
 
 # ── Prompt 加载 ────────────────────────────────────────────────────────────────
 
@@ -707,7 +711,27 @@ async def run_main_agent_stream(
 
 # ── 对话循环 ───────────────────────────────────────────────────────────────────
 
-async def main():
+def ensure_api_key() -> None:
+    """
+    启动前置校验 GLM_API_KEY（CLI 与 Web 共用）。
+
+    缺失时打印获取与配置指引后以非零码退出——比等到首次 API 调用
+    才收到难懂的 401 对新用户友好得多。
+    """
+    if os.environ.get("GLM_API_KEY"):
+        return
+    print("[错误] 未配置 GLM_API_KEY，无法调用模型。", file=sys.stderr)
+    print("获取地址：https://bigmodel.cn → API 密钥", file=sys.stderr)
+    print("配置方式（二选一）：", file=sys.stderr)
+    print('  1. 在运行目录创建 .env 文件，写入 GLM_API_KEY="你的密钥"（参考 .env.example）', file=sys.stderr)
+    print('  2. 或直接导出环境变量：export GLM_API_KEY="你的密钥"', file=sys.stderr)
+    raise SystemExit(1)
+
+
+async def main(resume=None):
+    # 启动前置校验：无 key 直接给出指引并退出，不打横幅
+    ensure_api_key()
+
     # 加载所有提示词（与原版完全一致）
     main_agent_prompt   = load_prompt("main_agent.md")
     sub_prompts = {

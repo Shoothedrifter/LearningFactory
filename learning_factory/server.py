@@ -18,8 +18,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-# 必须在导入 agent 模块之前加载 .env
-load_dotenv()
+# 必须在导入 agent 模块之前加载 .env。
+# 与 agent.py 同语义：只认运行目录（cwd）下的 .env，保证启动指引与实际加载行为一致
+load_dotenv(Path.cwd() / ".env")
 
 from .agent import run_main_agent_stream, load_prompt, load_skills
 
@@ -147,5 +148,7 @@ async def delete_session(session_id: str):
 
 
 if __name__ == "__main__":
+    from learning_factory.agent import ensure_api_key
+    ensure_api_key()  # 无 key 时 uvicorn 起来也无意义，启动即拦
     import uvicorn
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("learning_factory.server:app", host="0.0.0.0", port=8000, reload=True)
