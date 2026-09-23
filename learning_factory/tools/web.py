@@ -9,10 +9,7 @@ WebSearch 和 WebFetch 工具的具体实现。
 """
 
 from .mcp_client import call_mcp_tool
-
-# MCP 服务器端点
-_WEB_SEARCH_URL = "https://open.bigmodel.cn/api/mcp/web_search_prime/mcp"
-_WEB_READER_URL = "https://open.bigmodel.cn/api/mcp/web_reader/mcp"
+from ..config import get_web_search_url, get_web_reader_url
 
 
 async def web_search(query: str) -> str:
@@ -20,7 +17,7 @@ async def web_search(query: str) -> str:
     使用 MCP web_search_prime 搜索网页，返回格式化的搜索结果字符串。
     """
     return await call_mcp_tool(
-        server_url=_WEB_SEARCH_URL,
+        server_url=get_web_search_url(),
         tool_name="web_search_prime",
         arguments={"search_query": query, "location": "cn"},
     )
@@ -31,7 +28,7 @@ async def web_fetch(url: str) -> str:
     获取指定 URL 的网页内容，返回 Markdown 格式。
     """
     return await call_mcp_tool(
-        server_url=_WEB_READER_URL,
+        server_url=get_web_reader_url(),
         tool_name="webReader",
         arguments={"url": url, "return_format": "markdown"},
     )

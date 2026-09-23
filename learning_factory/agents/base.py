@@ -13,6 +13,7 @@ import json
 import os
 from typing import AsyncGenerator
 from openai import AsyncOpenAI
+from ..config import get_glm_base_url, get_main_agent_model
 from ..tools import TOOL_REGISTRY
 
 # ── GLM 客户端初始化（延迟初始化，避免在 load_dotenv() 之前创建）───────────────
@@ -26,14 +27,9 @@ def _get_client() -> AsyncOpenAI:
     if _glm_client is None:
         _glm_client = AsyncOpenAI(
             api_key=os.environ.get("GLM_API_KEY", ""),
-            base_url="https://open.bigmodel.cn/api/paas/v4/",
+            base_url=get_glm_base_url(),
         )
     return _glm_client
-
-# 默认模型，可在调用时覆盖
-# glm-5：推荐用于主 Agent（能力强）
-# glm-5-turbo：推荐用于子 Agent（速度快、成本低）
-DEFAULT_MODEL = "glm-5"
 
 # 防止无限循环的最大工具调用轮次
 MAX_TOOL_ROUNDS = 10
@@ -43,7 +39,7 @@ async def run_agent(
     system_prompt: str,
     tool_schemas: list,
     messages: list,
-    model: str = DEFAULT_MODEL,
+    model: str = None,
     agent_name: str = "Agent",
     max_rounds: int = MAX_TOOL_ROUNDS,
 ) -> str:
@@ -61,6 +57,9 @@ async def run_agent(
     返回:
         模型最终的文本回答（str）
     """
+
+    # 默认模型延迟到调用时从配置层读取（env 可覆盖，测试可 monkeypatch）
+    model = model or get_main_agent_model()
 
     # 每个 Agent 维护自己的本地消息历史，不污染调用方的 messages
     local_messages = list(messages)
@@ -165,7 +164,7 @@ async def run_agent_stream(
     system_prompt: str,
     tool_schemas: list,
     messages: list,
-    model: str = DEFAULT_MODEL,
+    model: str = None,
     agent_name: str = "Agent",
     max_rounds: int = MAX_TOOL_ROUNDS,
 ) -> AsyncGenerator[str, None]:
@@ -177,6 +176,8 @@ async def run_agent_stream(
         tool_call — 工具调用详情（名称、参数、结果摘要）
         answer    — 最终答案
     """
+    # 默认模型延迟到调用时从配置层读取（env 可覆盖，测试可 monkeypatch）
+    model = model or get_main_agent_model()
     local_messages = list(messages)
 
     yield _sse_event("status", agent_name, message="开始处理...")

@@ -7,6 +7,7 @@ P3 子 Agent 写入引擎（file_writer）的 TDD 测试。
 import json
 from pathlib import Path
 
+from learning_factory import config
 from learning_factory.agents import subagents as subagents_mod
 from learning_factory.tools.filesystem import FILESYSTEM_TOOL_SCHEMAS
 
@@ -33,7 +34,7 @@ async def test_run_file_writer_params(monkeypatch):
     assert result == "写入完成"
     assert captured["system_prompt"] == "写入提示词"
     assert captured["tool_schemas"] == FILESYSTEM_TOOL_SCHEMAS
-    assert captured["model"] == subagents_mod._SUB_AGENT_MODEL
+    assert captured["model"] == config.get_sub_agent_model()
     assert captured["max_rounds"] == 40  # 全文重写实测超 30 轮预算（2026-09-21）
     assert captured["agent_name"] == "file_writer"
     assert captured["messages"] == [{"role": "user", "content": "写 learning-path.md"}]

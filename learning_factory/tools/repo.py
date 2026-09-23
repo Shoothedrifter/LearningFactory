@@ -9,9 +9,7 @@ GitHub 仓库工具实现：封装 zread MCP 服务器。
 """
 
 from .mcp_client import call_mcp_tool
-
-# zread MCP 服务器端点
-_ZREAD_URL = "https://open.bigmodel.cn/api/mcp/zread/mcp"
+from ..config import get_zread_url
 
 
 async def repo_structure(repo_name: str, dir_path: str = "/") -> str:
@@ -23,7 +21,7 @@ async def repo_structure(repo_name: str, dir_path: str = "/") -> str:
         dir_path:  目录路径，默认为根目录 "/"
     """
     return await call_mcp_tool(
-        server_url=_ZREAD_URL,
+        server_url=get_zread_url(),
         tool_name="get_repo_structure",
         arguments={"repo_name": repo_name, "dir_path": dir_path},
     )
@@ -38,7 +36,7 @@ async def repo_read_file(repo_name: str, file_path: str) -> str:
         file_path: 文件的相对路径，例如 "README.md" 或 "src/index.ts"
     """
     return await call_mcp_tool(
-        server_url=_ZREAD_URL,
+        server_url=get_zread_url(),
         tool_name="read_file",
         arguments={"repo_name": repo_name, "file_path": file_path},
     )
@@ -53,7 +51,7 @@ async def repo_search(repo_name: str, query: str) -> str:
         query:      搜索关键词或问题
     """
     return await call_mcp_tool(
-        server_url=_ZREAD_URL,
+        server_url=get_zread_url(),
         tool_name="search_doc",
         arguments={"repo_name": repo_name, "query": query},
     )

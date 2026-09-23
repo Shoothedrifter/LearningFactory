@@ -11,11 +11,8 @@ agents/subagents.py
 from typing import AsyncGenerator
 
 from .base import run_agent, run_agent_stream
+from ..config import get_sub_agent_model, get_repo_analyzer_model
 from ..tools import FILESYSTEM_TOOL_SCHEMAS, WEB_TOOL_SCHEMAS, REPO_TOOL_SCHEMAS
-
-# 子 Agent 使用更快更便宜的模型
-# glm-5-turbo 速度快、成本低，适合执行具体的搜索/分析任务
-_SUB_AGENT_MODEL = "glm-5-turbo"
 
 
 # ── docs_researcher ────────────────────────────────────────────────────────────
@@ -34,7 +31,7 @@ async def run_docs_researcher(task: str, prompt: str) -> str:
         system_prompt=prompt,
         tool_schemas=WEB_TOOL_SCHEMAS,          # 只能搜索和抓取网页
         messages=[{"role": "user", "content": task}],
-        model=_SUB_AGENT_MODEL,
+        model=get_sub_agent_model(),
         agent_name="docs_researcher",
     )
     return result
@@ -59,7 +56,7 @@ async def run_repo_analyzer(task: str, prompt: str) -> str:
         system_prompt=prompt,
         tool_schemas=WEB_TOOL_SCHEMAS + REPO_TOOL_SCHEMAS,  # 搜索 + GitHub 仓库工具
         messages=[{"role": "user", "content": task}],
-        model="glm-5",  # 仓库分析需要更强的模型来可靠调用工具
+        model=get_repo_analyzer_model(),  # 仓库分析需要更强的模型来可靠调用工具
         agent_name="repo_analyzer",
         max_rounds=15,  # 仓库分析通常需要多轮探索，给予更多轮次
     )
@@ -82,7 +79,7 @@ async def run_web_researcher(task: str, prompt: str) -> str:
         system_prompt=prompt,
         tool_schemas=WEB_TOOL_SCHEMAS,
         messages=[{"role": "user", "content": task}],
-        model=_SUB_AGENT_MODEL,
+        model=get_sub_agent_model(),
         agent_name="web_researcher",
     )
     return result
@@ -114,7 +111,7 @@ async def run_file_writer(task: str, prompt: str) -> str:
         system_prompt=prompt,
         tool_schemas=FILESYSTEM_TOOL_SCHEMAS,  # 写入引擎独享完整文件系统工具
         messages=[{"role": "user", "content": task}],
-        model=_SUB_AGENT_MODEL,
+        model=get_sub_agent_model(),
         agent_name="file_writer",
         max_rounds=_FILE_WRITER_MAX_ROUNDS,
     )
@@ -147,7 +144,7 @@ async def run_docs_researcher_stream(task: str, prompt: str) -> AsyncGenerator[s
         system_prompt=prompt,
         tool_schemas=WEB_TOOL_SCHEMAS,
         messages=[{"role": "user", "content": task}],
-        model=_SUB_AGENT_MODEL,
+        model=get_sub_agent_model(),
         agent_name="docs_researcher",
     ):
         yield event
@@ -164,7 +161,7 @@ async def run_repo_analyzer_stream(task: str, prompt: str) -> AsyncGenerator[str
         system_prompt=prompt,
         tool_schemas=WEB_TOOL_SCHEMAS + REPO_TOOL_SCHEMAS,
         messages=[{"role": "user", "content": task}],
-        model="glm-5",
+        model=get_repo_analyzer_model(),
         agent_name="repo_analyzer",
         max_rounds=15,
     ):
@@ -182,7 +179,7 @@ async def run_web_researcher_stream(task: str, prompt: str) -> AsyncGenerator[st
         system_prompt=prompt,
         tool_schemas=WEB_TOOL_SCHEMAS,
         messages=[{"role": "user", "content": task}],
-        model=_SUB_AGENT_MODEL,
+        model=get_sub_agent_model(),
         agent_name="web_researcher",
     ):
         yield event
@@ -194,7 +191,7 @@ async def run_file_writer_stream(task: str, prompt: str) -> AsyncGenerator[str, 
         system_prompt=prompt,
         tool_schemas=FILESYSTEM_TOOL_SCHEMAS,
         messages=[{"role": "user", "content": task}],
-        model=_SUB_AGENT_MODEL,
+        model=get_sub_agent_model(),
         agent_name="file_writer",
         max_rounds=_FILE_WRITER_MAX_ROUNDS,
     ):

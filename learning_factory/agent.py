@@ -23,6 +23,7 @@ from dotenv import load_dotenv
 
 from .agents.base import run_agent
 from .agents.subagents import SUBAGENT_RUNNERS, SUBAGENT_STREAM_RUNNERS
+from .config import get_glm_base_url, get_main_agent_model, get_sub_agent_model
 from .tools import NOTION_TOOL_SCHEMAS, WEB_TOOL_SCHEMAS, FILESYSTEM_TOOL_SCHEMAS, TOOL_REGISTRY
 from .tools.skills import get_skill_manifest, SKILL_TOOL_SCHEMA, get_output_root_dir
 
@@ -141,9 +142,6 @@ _MAIN_FS_SCHEMAS = [
     if s["function"]["name"] not in ("write_file", "append_file")
 ]
 MAIN_AGENT_TOOLS = [DISPATCH_TOOL_SCHEMA, SKILL_TOOL_SCHEMA] + NOTION_TOOL_SCHEMAS + _MAIN_FS_SCHEMAS + WEB_TOOL_SCHEMAS
-
-# 主 Agent 使用能力最强的模型
-MAIN_AGENT_MODEL = "glm-5"
 
 # 主 Agent 工具调用轮次上限（普通版与流式版共用）
 # 模块级常量便于测试中 monkeypatch 缩小轮次来构造耗尽场景
@@ -406,18 +404,21 @@ async def run_main_agent(
     system_prompt: str,
     messages: list,
     sub_prompts: dict,
-    model: str = MAIN_AGENT_MODEL,
+    model: str = None,
 ) -> str:
     """
     主 Agent Loop，在 base.run_agent 基础上增加对 dispatch_to_subagent 的处理。
     其余工具（notion/web）直接走 TOOL_REGISTRY。
     """
+    # 默认模型延迟到调用时从配置层读取（env 可覆盖，测试可 monkeypatch）
+    model = model or get_main_agent_model()
+
     import openai
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI(
         api_key=os.environ.get("GLM_API_KEY", ""),
-        base_url="https://open.bigmodel.cn/api/paas/v4/",
+        base_url=get_glm_base_url(),
     )
 
     local_messages = list(messages)
@@ -507,7 +508,7 @@ async def run_main_agent_stream(
     system_prompt: str,
     messages: list,
     sub_prompts: dict,
-    model: str = MAIN_AGENT_MODEL,
+    model: str = None,
 ) -> AsyncGenerator[str, None]:
     """
     主 Agent 的流式版本：通过 yield 推送 SSE 事件。
@@ -518,11 +519,14 @@ async def run_main_agent_stream(
         subagent  — 子 Agent 开始/完成
         answer    — 最终答案
     """
+    # 默认模型延迟到调用时从配置层读取（env 可覆盖，测试可 monkeypatch）
+    model = model or get_main_agent_model()
+
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI(
         api_key=os.environ.get("GLM_API_KEY", ""),
-        base_url="https://open.bigmodel.cn/api/paas/v4/",
+        base_url=get_glm_base_url(),
     )
 
     local_messages = list(messages)
@@ -723,7 +727,7 @@ async def main():
     conversation_history: list[dict] = []
 
     print("=" * 60)
-    print("多智能体系统已启动（glm-5 主Agent / glm-5-turbo 子Agent）")
+    print(f"多智能体系统已启动（{get_main_agent_model()} 主Agent / {get_sub_agent_model()} 子Agent）")
     print("输入 'exit' 退出，输入 'clear' 清空对话历史")
     print("=" * 60)
 
