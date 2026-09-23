@@ -298,7 +298,6 @@ def _extract_dispatch_target_path(task: str):
     均提取不到返回 None（防线放行，宁放过勿错杀——防误伤无路径 task）。
     """
     for candidate in _TASK_PATH_ANCHOR_PATTERN.findall(task or ""):
-        candidate = candidate.strip("`")  # 容忍 "文件路径: `X`" 混合形态
         if "/" in candidate or Path(candidate).suffix:
             return str(Path(candidate).resolve())
     for candidate in _TASK_PATH_PATTERN.findall(task or ""):

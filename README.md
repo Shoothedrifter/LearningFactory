@@ -1,8 +1,8 @@
-# 多智能体系统（GLM-4 重构版）
+# 多智能体系统（GLM-5 重构版）
 
-基于智谱 AI GLM-4 的多智能体协作研究系统，直接通过 OpenAI SDK 调用 GLM-4 API，无需 LangChain / LangGraph 等框架依赖。
+基于智谱 AI GLM-5 的多智能体协作研究系统，直接通过 OpenAI SDK 调用 GLM API，无需 LangChain / LangGraph 等框架依赖。
 
-系统包含一个**主 Agent**（协调者）和三个**子 Agent**（专家），通过 ReAct 循环自动调用工具、分发任务、综合结果。
+系统包含一个**主 Agent**（协调者）和四个**子 Agent**（三路研究专家 + 专职写入引擎 file_writer），通过 ReAct 循环自动调用工具、分发任务、综合结果。
 
 ## 项目结构
 
@@ -13,7 +13,7 @@
 │
 ├── agents/
 │   ├── base.py                 # 核心 Agent Loop：ReAct 模式（普通 + 流式版本）
-│   └── subagents.py            # 三个子 Agent 定义及调度表（普通 + 流式版本）
+│   └── subagents.py            # 四个子 Agent 定义及调度表（普通 + 流式版本）
 │
 ├── tools/
 │   ├── __init__.py             # 工具注册表：函数名 → 实现函数的映射
@@ -22,13 +22,14 @@
 │   ├── bash.py                 # Shell 命令执行（asyncio.subprocess）
 │   ├── notion.py               # Notion REST API（搜索页面 + 追加内容块）
 │   ├── repo.py                 # GitHub 仓库分析（目录结构/文件读取/文档搜索）
-│   └── filesystem.py           # 本地文件操作（写文件 + 列目录）
+│   └── filesystem.py           # 本地文件操作（分块写入/追加 + 分页读取 + 列目录）
 │
 ├── prompts/                    # 系统提示词（Markdown 格式）
 │   ├── main_agent.md           #   主 Agent：研究协调者
 │   ├── docs_researcher.md      #   文档研究员
 │   ├── repo_analyzer.md        #   仓库分析员
-│   └── web_researcher.md       #   网络研究员
+│   ├── web_researcher.md       #   网络研究员
+│   └── file_writer.md          #   写入引擎（分块工作流 + 写后验证）
 │
 ├── static/
 │   └── index.html              # Web 聊天前端（SSE 消费 + Markdown 渲染 + 过程可视化）
@@ -56,33 +57,36 @@
 │  主 Agent (glm-5)          │  分析请求、分派任务、综合结果
 │  工具: dispatch / Notion / 文件  │
 └──────────┬──────────────────────┘
-           │ dispatch_to_subagent
+           │ dispatch_to_subagent（研究阶段三路并行）
            ├──────────┬──────────┬──────────┐
-           ▼          ▼          ▼          ▼
-  ┌────────────┐ ┌──────────┐ ┌──────────┐
-  │docs_researcher│ │repo_analyzer│ │web_researcher│
-  │ glm-5-turbo │ │glm-5│ │glm-5-turbo│
-  │ Search+Fetch│ │Repo工具  │ │Search+Fetch│
-  └────────────┘ └──────────┘ └──────────┘
+           ▼          ▼          ▼          ▼（输出阶段）
+  ┌────────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐
+  │docs_researcher│ │repo_analyzer│ │web_researcher│ │file_writer │
+  │ glm-5-turbo │ │glm-5│ │glm-5-turbo│ │glm-5-turbo │
+  │ Search+Fetch│ │Repo工具  │ │Search+Fetch│ │ 分块写入    │
+  └────────────┘ └──────────┘ └──────────┘ └────────────┘
         │              │             │
         └──────┬───────┘─────────────┘
                ▼
-         汇总 → 主 Agent 合成最终输出
+         汇总 → 主 Agent 合成最终输出 / dispatch file_writer 落盘
 ```
 
 > **并行执行**：主 Agent 同一轮返回的多个工具调用（包括多个 `dispatch_to_subagent`）通过
 > `asyncio.gather` 并发执行。Skill 工作流要求的"同时分派 3 个子 Agent"是真正的并行——
 > 三个子 Agent 的研究同时进行，总耗时约等于最慢的那个，而非三者之和。
 > 流式版本通过共享事件队列实时转发并行任务的过程事件（事件协议不变，前端无需改动）。
+> **限流防护**：dispatch 并发经信号量节流（同轮最多 3 个子 Agent 同时运行，重试等待期间也占槽），
+> 撞速率限制（429）自动退避重试一次；同轮指向同一文件的多个 file_writer 任务会被确定性防线
+> 拦截（只放行首个，其余推迟到下一轮），防止并发写同一文件导致内容静默颠倒。
 
 ### 核心 Agent Loop（ReAct 模式）
 
 `agents/base.py` 实现了标准的 ReAct (Reasoning + Acting) 循环：
 
-1. **调用模型** — 将 system prompt + 对话历史 + 工具定义发送给 GLM-4
+1. **调用模型** — 将 system prompt + 对话历史 + 工具定义发送给 GLM
 2. **判断响应** — 模型返回工具调用则执行工具，否则返回最终文本答案
 3. **执行工具** — 从 `TOOL_REGISTRY` 查找对应函数，异步执行并将结果追加到历史
-4. **循环迭代** — 重复步骤 1-3，直到模型不再调用工具或达到最大轮次（默认 10 轮）
+4. **循环迭代** — 重复步骤 1-3，直到模型不再调用工具或达到最大轮次（主 Agent 12 轮；子 Agent 按角色 10/15/40 轮）
 5. **兜底总结** — 达到最大轮次时，强制做一次无工具的总结调用
 
 ### 工具系统
@@ -99,7 +103,7 @@
 | `repo_structure` | `tools/repo.py` | 获取 GitHub 仓库目录结构 |
 | `repo_read_file` | `tools/repo.py` | 读取 GitHub 仓库文件内容 |
 | `repo_search` | `tools/repo.py` | 搜索仓库文档/issues/commits |
-| `write_file` | `tools/filesystem.py` | 写入本地文件（file_writer 子 Agent 专用，主 Agent 经 dispatch 使用；含路径穿越保护） |
+| `write_file` | `tools/filesystem.py` | 写入本地文件（file_writer 子 Agent 专用；单次 ≤1500 字符、超限拒绝并引导分块；覆盖非空文件需 `overwrite=true`；含路径穿越保护） |
 | `read_file` | `tools/filesystem.py` | 分页读取本地文件（offset/limit 续读） |
 | `list_directory` | `tools/filesystem.py` | 列出目录内容 |
 | `append_file` | `tools/filesystem.py` | 分块追加写入长文档（file_writer 子 Agent 专用，每块 ≤1500 字符） |
@@ -143,7 +147,7 @@ MCP 调用使用 `GLM_API_KEY` 进行认证，无需额外配置。
    - `repo_analyzer` → 仓库分析（架构、README、examples 目录）
    - `web_researcher` → 社区内容（教程、视频、讨论、常见坑）
 2. **结构化阶段** — 按 5 级渐进式学习框架组织内容
-3. **输出阶段** — 使用 `write_file` 工具在本地生成 `Learning-Factory/learning-{tool-name}/` 目录
+3. **输出阶段** — 主 Agent 自身无写入工具，为每个输出文件 dispatch `file_writer` 子 Agent（一轮一文件），在 `Learning-Factory/learning-{tool-name}/` 目录下生成本地文件
 
 **输出结构**：
 ```
@@ -168,6 +172,7 @@ Learning-Factory/learning-{tool-name}/
 | `run_docs_researcher()` | `run_docs_researcher_stream()` |
 | `run_repo_analyzer()` | `run_repo_analyzer_stream()` |
 | `run_web_researcher()` | `run_web_researcher_stream()` |
+| `run_file_writer()` | `run_file_writer_stream()` |
 
 普通版本用 `print()` 输出到终端，流式版本用 `yield` 推送 SSE 事件。
 
@@ -183,10 +188,10 @@ pip install -r requirements.txt
 
 | 包 | 版本 | 用途 |
 |----|------|------|
-| `openai` | >=1.30.0 | GLM-4 API（兼容 OpenAI SDK） |
+| `openai` | >=1.30.0 | GLM API（兼容 OpenAI SDK） |
 | `httpx` | >=0.27.0 | 异步 HTTP（Notion API） |
 | `python-dotenv` | >=1.0.0 | 环境变量加载 |
-| `mcp` | >=1.0.0 | MCP SDK（连接 MCP 服务器） |
+| `mcp` | >=1.0.0,<2 | MCP SDK（连接 MCP 服务器；2.x API 变更暂不兼容） |
 | `beautifulsoup4` | >=4.12.0 | HTML 解析 |
 | `fastapi` | >=0.110.0 | Web 框架 |
 | `uvicorn` | >=0.27.0 | ASGI 服务器 |
@@ -262,6 +267,7 @@ Web 模式下，`POST /chat` 端点以 `text/event-stream` 推送以下事件：
 | docs_researcher | `glm-5-turbo` | `agents/subagents.py` → `_SUB_AGENT_MODEL` | 搜索任务，速度快成本低 |
 | repo_analyzer | `glm-5` | `agents/subagents.py` → 硬编码 | 仓库分析需要可靠调用多个工具（15 轮上限） |
 | web_researcher | `glm-5-turbo` | `agents/subagents.py` → `_SUB_AGENT_MODEL` | 搜索任务，速度快成本低 |
+| file_writer | `glm-5-turbo` | `agents/subagents.py` → `_SUB_AGENT_MODEL` | 分块写入任务（40 轮预算），速度快成本低 |
 
 API 端点：`https://open.bigmodel.cn/api/paas/v4/`（兼容 OpenAI SDK）
 
@@ -289,14 +295,15 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-测试覆盖：同轮多工具调用的并行执行（并发峰值断言）、OpenAI 消息协议完整性
-（tool_call_id 顺序回填）、单个工具失败的隔离性（错误成为该工具的结果，不影响其他工具）。
+测试覆盖（90 项）：同轮多工具并行执行与消息协议完整性（tool_call_id 顺序回填、单工具失败隔离）、
+分块写入硬限制（1500 字符）与覆盖防线、同轮同文件写/dispatch 双防线（路径两级启发式提取）、
+dispatch 429 退避重试与并发节流（信号量）、Skill 渐进披露三层加载、模型配置钉住等。
 
 ## 注意事项
 
-- `prompts/` 目录下的 4 个 `.md` 文件直接复用原项目提示词，无需修改
+- `prompts/` 目录下的 5 个 `.md` 文件中，4 个研究/协调提示词直接复用原项目，`file_writer.md` 为本项目新增
 - Notion 集成从 MCP 改为直接 REST API，功能等价（search + append block）
 - Bash 工具会在本机执行命令，请确保在可信环境中运行
 - Web 模式的会话存储在内存中，不支持持久化
-- `learning-pytorch/` 等目录是 Skill 系统生成的输出示例，非项目核心代码
+- `Learning-Factory/` 下的 `learning-pytorch/` 等目录是 Skill 系统生成的输出产物（在 `.gitignore` 中，不入库）
 - `.env` 文件包含 API 密钥，不应提交到版本控制
