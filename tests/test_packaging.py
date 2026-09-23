@@ -8,7 +8,7 @@ pip 安装后用户在任意目录运行 CLI，load_prompt 不能依赖仓库根
 提示词"，是"人人可安装"链路的最小守护。
 """
 
-from multi_agent import agent
+from learning_factory import agent
 
 
 def test_load_prompt_is_cwd_independent(tmp_path, monkeypatch):

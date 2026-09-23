@@ -10,7 +10,7 @@ runner 只转发内部 run_agent_stream 的过程事件。
 
 import json
 
-from multi_agent.agents import subagents as subagents_mod
+from learning_factory.agents import subagents as subagents_mod
 
 
 async def test_stream_runners_do_not_emit_subagent_events(monkeypatch):

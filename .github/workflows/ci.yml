@@ -29,7 +29,7 @@ jobs:
       - name: 可安装性检查
         run: |
           pip install -e .
-          python -c "from multi_agent.agent import load_prompt; assert len(load_prompt('main_agent.md')) > 100"
+          python -c "from learning_factory.agent import load_prompt; assert len(load_prompt('main_agent.md')) > 100"
 
       - name: 运行测试
         run: pytest -q

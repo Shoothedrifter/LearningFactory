@@ -4,8 +4,8 @@ P3 主 Agent 侧接线：file_writer 进 dispatch 枚举、主 Agent 移除直�
 enforcement 改为 dispatch 指示（1500 分块细则下沉到 prompts/file_writer.md）。
 """
 
-from multi_agent import agent
-from multi_agent.agents import subagents as subagents_mod
+from learning_factory import agent
+from learning_factory.agents import subagents as subagents_mod
 
 
 def _tool_names():
@@ -61,7 +61,7 @@ async def test_execute_dispatch_routes_file_writer(monkeypatch):
 
 def test_server_sub_prompts_include_file_writer():
     """server.py 的 SUB_PROMPTS 注册 file_writer（流式路径的提示词来源）。"""
-    from multi_agent import server
+    from learning_factory import server
     assert "file_writer" in server.SUB_PROMPTS
     assert server.SUB_PROMPTS["file_writer"]  # 非空（load_prompt 成功）
 

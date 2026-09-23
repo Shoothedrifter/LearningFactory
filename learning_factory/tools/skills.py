@@ -16,13 +16,13 @@ SKILLS_DIR = Path(__file__).parent.parent / "skills"
 
 def get_output_root_dir() -> str:
     """
-    技能产物输出根目录：环境变量 MULTI_AGENT_OUTPUT_DIR 可覆盖（CLI
+    技能产物输出根目录：环境变量 LEARNING_FACTORY_OUTPUT_DIR 可覆盖（CLI
     --output-dir 的落地通道），默认 Learning-Factory。
 
     enforcement、兜底文案与技能文本（load_skill）三处共用此取值，
     保证模型在任一通道看到的目录指示一致。
     """
-    return os.environ.get("MULTI_AGENT_OUTPUT_DIR", "Learning-Factory")
+    return os.environ.get("LEARNING_FACTORY_OUTPUT_DIR", "Learning-Factory")
 
 
 def _apply_output_root(text: str) -> str:

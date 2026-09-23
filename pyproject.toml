@@ -8,7 +8,7 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "multi-agent"
+name = "learning_factory"
 version = "0.1.0"
 description = "GLM 多智能体协作研究系统：主 Agent 调度 docs/repo/web/file_writer 四个子 Agent 完成工具学习、研究与长文档写入"
 readme = "README.md"
@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Web 界面（multi_agent/server.py）为可选运行模式，CLI 用户无需安装
+# Web 界面（learning_factory/server.py）为可选运行模式，CLI 用户无需安装
 web = [
     "fastapi>=0.110.0",
     "uvicorn>=0.27.0",
@@ -36,11 +36,11 @@ dev = [
 ]
 
 [project.scripts]
-multi-agent = "multi_agent.agent:run_cli"
+learning-factory = "learning_factory.agent:run_cli"
 
 [tool.setuptools.packages.find]
-include = ["multi_agent*"]
+include = ["learning_factory*"]
 
 [tool.setuptools.package-data]
 # 提示词/技能/静态页随包分发（load_prompt/SKILLS_DIR/STATIC_DIR 均按包内路径读取）
-multi_agent = ["prompts/*.md", "skills/**/*.md", "static/*.html"]
+learning_factory = ["prompts/*.md", "skills/**/*.md", "static/*.html"]

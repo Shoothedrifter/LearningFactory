@@ -10,8 +10,8 @@ Skill 渐进披露加载工具（tools/skills.py）的 TDD 测试。
 
 import asyncio
 
-from multi_agent.tools import skills as skills_mod
-from multi_agent.tools import TOOL_REGISTRY
+from learning_factory.tools import skills as skills_mod
+from learning_factory.tools import TOOL_REGISTRY
 
 
 def _make_skill(root, name, description="一个测试技能", body="# 工作流正文", refs=None):

@@ -9,7 +9,7 @@ append_file 逐块追加，每块保持在模型能稳定生成的长度量级�
 
 import asyncio
 
-from multi_agent.tools.filesystem import FILESYSTEM_TOOL_SCHEMAS, append_file, read_file, write_file
+from learning_factory.tools.filesystem import FILESYSTEM_TOOL_SCHEMAS, append_file, read_file, write_file
 
 
 def _run(coro):
@@ -44,7 +44,7 @@ def test_append_file_rejects_path_escape(tmp_path, monkeypatch):
 
 def test_append_file_registered_in_tool_registry():
     """append_file 必须已注册进 TOOL_REGISTRY，模型才能实际调用到它。"""
-    from multi_agent.tools import TOOL_REGISTRY
+    from learning_factory.tools import TOOL_REGISTRY
 
     assert "append_file" in TOOL_REGISTRY
 
@@ -131,7 +131,7 @@ def test_read_file_missing_and_dir_errors(tmp_path, monkeypatch):
 
 def test_read_file_registered_and_schema_pins_preread():
     """注册 + schema 决策点文案：续写前必读（防盲写覆盖）。"""
-    from multi_agent.tools import TOOL_REGISTRY
+    from learning_factory.tools import TOOL_REGISTRY
 
     by_name = {s["function"]["name"]: s["function"]["description"] for s in FILESYSTEM_TOOL_SCHEMAS}
     assert "read_file" in TOOL_REGISTRY

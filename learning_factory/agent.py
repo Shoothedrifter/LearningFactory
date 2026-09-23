@@ -772,24 +772,24 @@ async def main():
 
 def run_cli():
     """
-    console_script 入口（pip/pipx 安装后的 multi-agent 命令）。
+    console_script 入口（pip/pipx 安装后的 learning-factory 命令）。
 
-    解析 CLI 参数后进入异步对话循环；也可用 `python -m multi_agent.agent`
-    触发同一入口。--output-dir 经环境变量 MULTI_AGENT_OUTPUT_DIR 落地，
+    解析 CLI 参数后进入异步对话循环；也可用 `python -m learning_factory.agent`
+    触发同一入口。--output-dir 经环境变量 LEARNING_FACTORY_OUTPUT_DIR 落地，
     与 enforcement/兜底文案/技能文本的注入通道共用。
     """
     parser = argparse.ArgumentParser(
-        prog="multi-agent",
+        prog="learning-factory",
         description="GLM 多智能体协作研究系统：主 Agent 调度 docs/repo/web/file_writer 四个子 Agent",
     )
     parser.add_argument(
         "--output-dir",
         default=None,
-        help="技能产物输出根目录（默认 Learning-Factory；等价环境变量 MULTI_AGENT_OUTPUT_DIR）",
+        help="技能产物输出根目录（默认 Learning-Factory；等价环境变量 LEARNING_FACTORY_OUTPUT_DIR）",
     )
     args = parser.parse_args()
     if args.output_dir:
-        os.environ["MULTI_AGENT_OUTPUT_DIR"] = args.output_dir
+        os.environ["LEARNING_FACTORY_OUTPUT_DIR"] = args.output_dir
     asyncio.run(main())
 
 
