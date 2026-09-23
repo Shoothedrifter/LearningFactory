@@ -729,6 +729,28 @@ def ensure_api_key() -> None:
     raise SystemExit(1)
 
 
+def render_event(event: dict):
+    """
+    把流式事件渲染为终端一行（CLI 零依赖行式渲染）。
+
+    返回 None 表示不打印：status 属过程噪音；main 的 answer 由
+    main() 循环整段输出（与既有「Assistant: 」前缀衔接）；子 Agent 的
+    answer 已被流式版聚合进工具结果，同样不单独渲染。
+    """
+    etype = event.get("type")
+    if etype == "subagent":
+        name = event.get("subagent", "unknown")
+        if event.get("status") == "start":
+            task = (event.get("task") or "")[:50]
+            return f"  ▶ [{name}] {task}"
+        return f"  ✔ [{name}] 完成"
+    if etype == "tool_call":
+        return f"  · {event.get('tool', '?')}(...)"
+    if etype == "error":
+        return f"  [错误] {event.get('message', '')}"
+    return None
+
+
 async def main(resume=None):
     # 启动前置校验：无 key 直接给出指引并退出，不打横幅
     ensure_api_key()
@@ -755,6 +777,10 @@ async def main(resume=None):
         restored = load_session(rpath) if rpath and rpath.exists() else None
         if restored:
             conversation_history = restored
+            # 裁掉尾部连续 user 消息：上一轮异常退出时内存里已 pop 但磁盘已落盘，
+            # 这类孤儿 user 不进请求上下文（磁盘文件保留原样，只裁内存）
+            while conversation_history and conversation_history[-1]["role"] == "user":
+                conversation_history.pop()
             session_path = rpath
             print(f"[系统] 已恢复会话 {rpath.name}（{len(restored)} 条消息）")
         else:
@@ -798,12 +824,22 @@ async def main(resume=None):
         print("\n\033[1mAssistant\033[0m: ", end="", flush=True)
 
         try:
-            # 调用主 Agent，传入完整对话历史
-            answer = await run_main_agent(
+            # 调用流式版主 Agent：过程事件实时逐行渲染，answer（agent=main）整段输出
+            answer_parts = []
+            async for ev_str in run_main_agent_stream(
                 system_prompt=main_agent_prompt,
                 messages=conversation_history,
                 sub_prompts=sub_prompts,
-            )
+            ):
+                # run_main_agent_stream 每事件 yield 一个 SSE JSON 字符串，先解析
+                ev = json.loads(ev_str)
+                if ev.get("type") == "answer" and ev.get("agent") == "main":
+                    answer_parts.append(ev.get("content", ""))
+                    continue
+                line = render_event(ev)
+                if line:
+                    print(line)
+            answer = "".join(answer_parts)
             print(answer)
 
             # 把 Assistant 的回答加入对话历史（支持多轮），并落盘

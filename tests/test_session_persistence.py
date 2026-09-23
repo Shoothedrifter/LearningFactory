@@ -4,6 +4,8 @@ CLI 会话持久化：逐轮追加到家目录 JSONL，--resume 恢复。
 SESSIONS_DIR 经 monkeypatch 重定向到 tmp_path，不污染真实家目录。
 """
 
+import json
+
 from learning_factory import session
 
 
@@ -52,15 +54,17 @@ async def test_main_resume_restores_history(tmp_path, monkeypatch, patch_openai,
     monkeypatch.setattr(agent, "load_skills", lambda: "")
     inputs = iter(["新问题", "exit"])
     monkeypatch.setattr("builtins.input", lambda *a: next(inputs))
-    # 假主 Agent：记录入参 messages，直接返回答案（不经真实模型）
+    # 假流式主 Agent：记录入参 messages，yield 一条 main 的 answer 事件
+    # （main() 已切 run_main_agent_stream，mock 形态随调用方对齐）
     captured = {}
 
-    async def fake_run_main_agent(**kwargs):
+    async def fake_run_main_agent_stream(**kwargs):
         captured["messages"] = list(kwargs["messages"])
-        return "新回答"
+        yield json.dumps({"type": "answer", "agent": "main", "content": "新回答"},
+                         ensure_ascii=False)
 
-    monkeypatch.setattr(agent, "run_main_agent", fake_run_main_agent)
-    patch_openai()  # run_main_agent 已替换，这里仅兜底防真实客户端构造
+    monkeypatch.setattr(agent, "run_main_agent_stream", fake_run_main_agent_stream)
+    patch_openai()  # run_main_agent_stream 已替换，这里仅兜底防真实客户端构造
 
     await agent.main(resume=str(old))
 
@@ -72,3 +76,42 @@ async def test_main_resume_restores_history(tmp_path, monkeypatch, patch_openai,
     assert captured["messages"][0] == {"role": "user", "content": "旧问题"}
     # 逐轮落盘：恢复会话后新一轮的 user/assistant 消息追加进同一文件
     assert len(session.load_session(old)) == 4
+
+
+async def test_main_resume_trims_trailing_orphan_user(tmp_path, monkeypatch, patch_openai, capsys):
+    """旧会话尾部孤儿 user（异常轮次已落盘未回滚）resume 后不进请求上下文。"""
+    from learning_factory import agent
+
+    sess_dir = tmp_path / "sessions"; sess_dir.mkdir()
+    old = sess_dir / "orphan.jsonl"
+    session.append_message(old, {"role": "user", "content": "旧问题"})
+    session.append_message(old, {"role": "assistant", "content": "旧回答"})
+    # 模拟异常轮次残留：user 已落盘，但模型回答未来得及写入
+    session.append_message(old, {"role": "user", "content": "孤儿问题"})
+
+    monkeypatch.setattr(session, "SESSIONS_DIR", sess_dir)
+    monkeypatch.setenv("GLM_API_KEY", "fake-key")
+    monkeypatch.setattr(agent, "load_prompt", lambda f: "测试提示词")
+    monkeypatch.setattr(agent, "load_skills", lambda: "")
+    inputs = iter(["新问题", "exit"])
+    monkeypatch.setattr("builtins.input", lambda *a: next(inputs))
+    captured = {}
+
+    async def fake_run_main_agent_stream(**kwargs):
+        captured["messages"] = list(kwargs["messages"])
+        yield json.dumps({"type": "answer", "agent": "main", "content": "新回答"},
+                         ensure_ascii=False)
+
+    monkeypatch.setattr(agent, "run_main_agent_stream", fake_run_main_agent_stream)
+    patch_openai()
+
+    await agent.main(resume=str(old))
+
+    msgs = captured["messages"]
+    # 孤儿 user 不进上下文：内容缺席，且历史里不出现连续两条 user
+    # （恢复部分以旧回答收尾，新问题正常作为尾部 user 进入）
+    assert all(m["content"] != "孤儿问题" for m in msgs)
+    assert msgs[-1] == {"role": "user", "content": "新问题"}
+    assert msgs[-2] == {"role": "assistant", "content": "旧回答"}
+    roles = [m["role"] for m in msgs]
+    assert not any(a == "user" and b == "user" for a, b in zip(roles, roles[1:]))
