@@ -1,0 +1,46 @@
+# 发布到 PyPI：打 v* 标签触发（git tag v0.1.0 && git push origin v0.1.0）
+# 认证走 Trusted Publishing（OIDC，免 API token）——首次发布前需在 PyPI 侧
+# 登记.pending publisher（owner/repository/workflow/environment 四项与下方一致），
+# 首次发布成功后自动转为正式 publisher。构建与发布分 job，工件经 artifact 传递。
+name: Publish to PyPI
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: 构建 sdist 与 wheel 并校验元数据
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          twine check dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # 与 PyPI trusted publisher 登记的 environment 名一致
+    environment: pypi
+    permissions:
+      id-token: write  # Trusted Publishing 的 OIDC 令牌
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: 发布到 PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

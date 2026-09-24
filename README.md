@@ -183,17 +183,25 @@ Learning-Factory/learning-{tool-name}/
 
 ### 1. 安装
 
-要求 Python >= 3.11。两种方式任选：
+要求 Python >= 3.11。三种方式任选：
 
-**方式 A：pipx 安装（推荐，隔离环境、获得 `learning-factory` 命令）**
+**方式 A：pipx 从 PyPI 直装（推荐，隔离环境、获得 `learning-factory` 命令）**
 
 ```bash
-pipx install .
+pipx install learning-factory
 ```
 
-**方式 B：clone 后 pip 安装（开发场景）**
+**方式 B：pipx 从 GitHub 直装（无需本地仓库副本）**
 
 ```bash
+pipx install git+https://github.com/Shoothedrifter/LearningFactory.git
+```
+
+**方式 C：clone 后 pip 安装（开发场景）**
+
+```bash
+git clone https://github.com/Shoothedrifter/LearningFactory.git
+cd LearningFactory
 pip install -r requirements.txt        # 直跑（含 Web 模式全家桶）
 # 或
 pip install -e ".[web,dev]"            # 可编辑安装 + Web/开发可选依赖
