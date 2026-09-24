@@ -174,6 +174,35 @@ async def test_stream_one_subagent_failure_does_not_break_others(patch_openai, m
     assert "web_researcher 的结论" in tool_msgs[2]["content"]
 
 
+async def test_stream_done_event_carries_ok_flag(patch_openai, monkeypatch):
+    """done 事件带成败 ok 字段：崩溃子 Agent ok=False、正常子 Agent ok=True。
+
+    实测病灶（logs/ai-agent_CLI.txt）：429 耗尽的子 Agent 也渲染 ✔ 完成，
+    与最终总结「❌ 未执行成功」观感矛盾。判据为工具结果 [错误] 前缀
+    （参数无效/未知子 Agent/429 耗尽/执行异常的统一回填前缀）。
+    """
+    monkeypatch.setattr(agent, "SUBAGENT_STREAM_RUNNERS",
+                        _make_stream_runners_with_failure("repo_analyzer"))
+    patch_openai(
+        make_tool_calls_response([
+            _dispatch_call("call_1", "docs_researcher"),
+            _dispatch_call("call_2", "repo_analyzer"),
+        ]),
+        make_text_response("总结"),
+    )
+
+    events = await _collect_events(
+        system_prompt="测试",
+        messages=[{"role": "user", "content": "研究一下"}],
+        sub_prompts={},
+    )
+
+    done = {e["subagent"]: e for e in events
+            if e["type"] == "subagent" and e["status"] == "done"}
+    assert done["docs_researcher"].get("ok") is True
+    assert done["repo_analyzer"].get("ok") is False
+
+
 async def test_stream_malformed_arguments_do_not_break_round(patch_openai, monkeypatch):
     """流式版：畸形 JSON 参数成为错误结果，事件流与整轮不受影响。"""
     bad_call = SimpleNamespace(

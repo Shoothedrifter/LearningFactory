@@ -644,7 +644,13 @@ async def run_main_agent_stream(
                                     result = "\n".join(sub_results) if sub_results else "[子 Agent 未返回结果]"
                                     break
 
-                    await event_queue.put(_sse("subagent", subagent=sub_name, status="done"))
+                    # done 事件带成败：工具结果 [错误] 前缀即失败（429 耗尽/
+                    # 崩溃/未知子 Agent 的统一回填前缀），CLI 渲染据此区分
+                    # ✔/✖；ok 为新增可选字段，不读该字段的消费端不受影响
+                    await event_queue.put(_sse(
+                        "subagent", subagent=sub_name, status="done",
+                        ok=not result.startswith("[错误]"),
+                    ))
                     return result
                 else:
                     # 普通工具（与普通版共用 _run_plain_tool）
@@ -753,11 +759,20 @@ def render_event(event: dict):
         name = event.get("subagent", "unknown")
         if event.get("status") == "start":
             # 换行/连续空白压成单空格，行式输出不被打乱
-            task = " ".join((event.get("task") or "").split())[:50]
+            task = " ".join((event.get("task") or "").split())
+            # 超 50 字符中段省略：实测同目录多任务的路径前缀占满头部、
+            # 保头截断会把多行渲染成同一串（logs/ai-agent_CLI.txt 7 个 ▶
+            # 同串失区分度）；保头（动词短语）+ 保尾（文件名/内容要求）
+            # 恢复行间区分度，行宽上限不变
+            if len(task) > 50:
+                task = f"{task[:23]}…{task[-26:]}"
             return f"  ▶ [{name}] {task}"
         # done 行仅在 status == done 时返回；未知 status 不渲染（防御误显示为完成）
         if event.get("status") == "done":
-            return f"  ✔ [{name}] 完成"
+            # ok 缺省按成功（向后兼容无 ok 字段的旧事件）
+            if event.get("ok", True):
+                return f"  ✔ [{name}] 完成"
+            return f"  ✖ [{name}] 失败"
         return None
     if etype == "tool_call":
         return f"  · {event.get('tool', '?')}(...)"

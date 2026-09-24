@@ -26,6 +26,44 @@ def test_subagent_start_task_newline_collapsed():
     assert "\n" not in line
     assert "查文档 换行后半段" in line
 
+def test_subagent_start_long_task_keeps_tail():
+    """超长 task 中段省略：同目录前缀的长任务保留尾部文件名，行间可区分。
+
+    实测病灶（logs/ai-agent_CLI.txt）：7 个 file_writer 任务同前缀，
+    保头部截断后 7 行 ▶ 渲染成同一串、失去区分度。
+    """
+    task_1 = "写入文件 Learning-Factory/learning-agent/code-examples/01-hello-world/openai_agent.py"
+    task_2 = "写入文件 Learning-Factory/learning-agent/code-examples/02-core-concepts/message_loop.py"
+    line_1 = render_event({"type": "subagent", "subagent": "file_writer",
+                           "status": "start", "task": task_1})
+    line_2 = render_event({"type": "subagent", "subagent": "file_writer",
+                           "status": "start", "task": task_2})
+    assert line_1 is not None and line_2 is not None
+    assert line_1 != line_2                     # 同前缀任务不再渲染成同一串
+    assert "openai_agent.py" in line_1          # 尾部文件名保留（区分度来源）
+    assert "message_loop.py" in line_2
+    assert len(line_1) <= 80 and len(line_2) <= 80
+
+def test_subagent_start_short_task_kept_verbatim():
+    """短 task 原样渲染，不出现中段省略号。"""
+    line = render_event({"type": "subagent", "subagent": "file_writer",
+                         "status": "start", "task": "写 README 概览"})
+    assert line is not None
+    assert "写 README 概览" in line
+    assert "…" not in line
+
+def test_subagent_done_failed_renders_failure():
+    """done 事件带 ok=False 渲染失败行（429 耗尽/崩溃不再误显 ✔ 完成）。"""
+    line = render_event({"type": "subagent", "subagent": "docs_researcher",
+                         "status": "done", "ok": False})
+    assert line is not None and "docs_researcher" in line
+    assert "失败" in line and "完成" not in line
+
+def test_subagent_done_without_ok_renders_success():
+    """无 ok 字段的 done 事件按成功渲染（SSE 协议向后兼容旧事件）。"""
+    line = render_event({"type": "subagent", "subagent": "file_writer", "status": "done"})
+    assert line is not None and "完成" in line
+
 def test_subagent_unknown_status_renders_nothing():
     """status 为未知值（如 error）的 subagent 事件不渲染。
 

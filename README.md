@@ -42,7 +42,7 @@
 │           └── references/
 │               └── progressive-learning.md  # 渐进式学习框架（5 个层级）
 │
-├── tests/                      # pytest 测试（123 项，全 mock 无需真实 API Key）
+├── tests/                      # pytest 测试（132 项，全 mock 无需真实 API Key）
 ├── pyproject.toml              # 打包与依赖真相（入口点 learning-factory、requires-python>=3.11）
 ├── requirements.txt            # git clone 直跑场景的依赖清单（版本以 pyproject.toml 为准）
 └── .env                        # 环境变量（API 密钥，从 .env.example 复制）
@@ -246,7 +246,7 @@ python -m learning_factory.agent
 - 支持多轮对话，对话历史逐轮落盘（见[会话持久化](#会话持久化cli)）
 - `--resume`：恢复上次会话；不带参数恢复最近一次会话，或指定会话文件路径 `--resume ~/.learning_factory/sessions/<文件>.jsonl`
 - `--output-dir <目录>`：技能产物输出根目录（默认 `Learning-Factory/`；等价环境变量 `LEARNING_FACTORY_OUTPUT_DIR`，enforcement/兜底文案/技能文本四通道一致注入）
-- 过程实时渲染：子 Agent 启动/完成（`▶`/`✔`）与工具调用（`·`）逐行打印，主 Agent 最终答案整段输出
+- 过程实时渲染：子 Agent 启动/完成（`▶`/`✔`，失败为 `✖`）与工具调用（`·`）逐行打印（超长任务中段省略、保留尾部文件名），主 Agent 最终答案整段输出
 - `GLM_API_KEY` 未配置时启动即打印获取与配置指引并以退出码 1 退出
 
 **Web 模式（浏览器访问）：**
@@ -269,7 +269,7 @@ Web 模式下，`POST /chat` 端点以 `text/event-stream` 推送以下事件：
 |----------|------|------|
 | `status` | `agent`, `message` | 状态更新（开始处理、轮次信息） |
 | `tool_call` | `agent`, `tool`, `args`, `result`, `status` | 工具调用详情 |
-| `subagent` | `subagent`, `status`, `task` | 子 Agent 开始/完成 |
+| `subagent` | `subagent`, `status`, `task`, `ok` | 子 Agent 开始/完成（`ok` 为 done 时的成败标记，缺省为成功） |
 | `answer` | `agent`, `content` | 最终答案 |
 | `error` | `message` | 错误信息 |
 
@@ -342,7 +342,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-测试覆盖（123 项）：同轮多工具并行执行与消息协议完整性（tool_call_id 顺序回填、单工具失败隔离）、
+测试覆盖（132 项）：同轮多工具并行执行与消息协议完整性（tool_call_id 顺序回填、单工具失败隔离）、
 分块写入硬限制（1500 字符）与覆盖防线、同轮同文件写/dispatch 双防线（路径两级启发式提取）、
 dispatch 429 退避重试与并发节流（信号量）、Skill 渐进披露三层加载、模型配置钉住等。
 
