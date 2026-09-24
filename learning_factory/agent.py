@@ -194,7 +194,7 @@ _DISPATCH_RETRY_DELAY_SECONDS = 2.0   # 退避时长（测试可 monkeypatch 置
 # 在有等待竞争时绑定首个 loop，跨 loop 复用会 RuntimeError（pytest-asyncio
 # 每测试新 loop，模块级单例必炸；生产 main() 全程单 loop 不受影响）。
 # 附带收益：新 loop 缓存 miss 后读最新常量值，测试 monkeypatch 直接生效。
-_DISPATCH_CONCURRENCY_LIMIT = 3  # 同时运行的子 Agent 上限（研究阶段三路并行的语义保持）
+_DISPATCH_CONCURRENCY_LIMIT = 2  # 同时运行的子 Agent 上限（两轮实测限流阈值低于 3 路同发，3→2 换稳定性；研究三路并行变 2+1 波）
 
 _DISPATCH_SEMAPHORES: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = weakref.WeakKeyDictionary()
 
@@ -289,13 +289,17 @@ def _screen_same_file_writes(tool_calls) -> dict:
 
 
 # 从 file_writer 任务文本提取目标文件路径，两级启发式：
-#   1) 锚定词（最明确）：文件路径/目标文件/输出文件 + 全/半角冒号后接路径 token
-#      （实测新形态见 logs/after_pytorch.txt :218-224，如
-#       "文件路径: Learning-Factory/.../01-tensor-basics.py 内容: ..."，无反引号）
+#   1) 锚定词（最明确）后接路径 token：
+#      - 文件路径/目标文件/输出文件 + 全/半角冒号（logs/after_pytorch.txt，
+#        如 "文件路径: Learning-Factory/.../01-tensor-basics.py 内容: ..."，无反引号）
+#      - 创建文件/写入文件 + 可选冒号（实测均为无冒号直接跟路径：
+#        logs/harness.txt "创建文件 X"、logs/ai-agent_CLI.txt "写入文件 X"）
 #   2) 回退：反引号包裹、形似路径（含 / 或带扩展名）的第一个 token
 #      （实测 task 形态见 logs/afterfilewriter.txt，
 #       如 "向已有文件 `Learning-Factory/.../learning-path.md` 末尾追加..."）
-_TASK_PATH_ANCHOR_PATTERN = re.compile(r"(?:文件路径|目标文件|输出文件)[：:]\s*([^\s，。,；;`]+)")
+_TASK_PATH_ANCHOR_PATTERN = re.compile(
+    r"(?:(?:文件路径|目标文件|输出文件)[：:]|(?:创建文件|写入文件)[：:]?)\s*([^\s，。,；;`]+)"
+)
 _TASK_PATH_PATTERN = re.compile(r"`([^`]+)`")
 
 

@@ -36,9 +36,11 @@ async def test_dispatch_concurrency_capped(monkeypatch):
     assert running["peak"] <= 2       # 同时运行数被限在上限内
 
 
-async def test_semaphore_default_limit_is_3():
-    """默认并发上限 3（研究阶段三路并行 ALL THREE 的语义保持）。"""
-    assert agent._DISPATCH_CONCURRENCY_LIMIT == 3
+async def test_semaphore_default_limit_is_2():
+    """默认并发上限 2（2026-09-23/24 两轮实测：限流阈值低于 3 路同发，
+    节流 3 下多 writer 波次仍每波必撞 429；用户拍板 3→2 换稳定性，
+    研究三路并行变为 2+1 波）。"""
+    assert agent._DISPATCH_CONCURRENCY_LIMIT == 2
 
 
 async def test_stream_dispatch_respects_semaphore(patch_openai, monkeypatch):

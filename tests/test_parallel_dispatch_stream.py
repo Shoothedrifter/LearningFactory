@@ -70,7 +70,9 @@ async def test_stream_dispatches_run_concurrently(patch_openai, monkeypatch):
         sub_prompts={},
     )
 
-    assert recorder.max_active == 3  # 串行实现下 == 1 → 此测试先失败
+    assert recorder.max_active == min(3, agent._DISPATCH_CONCURRENCY_LIMIT)
+    # 并行性保持（串行实现下 == 1）；2026-09-23 起受节流上限约束，
+    # 2026-09-24 上限 3→2，3 路同轮为 2+1 波、峰值即上限
     answer_events = [e for e in events if e["type"] == "answer" and e.get("agent") == "main"]
     assert answer_events[-1]["content"] == "最终答案"
 

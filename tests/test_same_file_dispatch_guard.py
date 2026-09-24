@@ -137,3 +137,24 @@ def test_anchor_form_same_file_blocked():
     ])
     assert set(blocked) == {1}
     assert "同一文件" in blocked[1]
+
+
+# ── 锚定词扩充（2026-09-23 拍板「创建文件」+ 2026-09-24 实测「写入文件」）──
+# 实测形态均无反引号、无冒号：logs/harness.txt「创建文件 X」、
+# logs/ai-agent_CLI.txt「写入文件 Learning-Factory/...（直接跟路径）」。
+
+
+def test_extracts_path_from_create_file_anchor():
+    """「创建文件 X」形态（无反引号无冒号）：提取成功。"""
+    got = agent._extract_dispatch_target_path(
+        "创建文件 Learning-Factory/learning-agent/draft.md 内容：概述与导览"
+    )
+    assert got == str(Path("Learning-Factory/learning-agent/draft.md").resolve())
+
+
+def test_extracts_path_from_write_file_anchor():
+    """「写入文件 X」形态（2026-09-24 实测）：提取成功。"""
+    got = agent._extract_dispatch_target_path(
+        "写入文件 Learning-Factory/learning-agent/resources.md 追加常见陷阱清单"
+    )
+    assert got == str(Path("Learning-Factory/learning-agent/resources.md").resolve())

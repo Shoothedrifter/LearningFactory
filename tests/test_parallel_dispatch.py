@@ -54,7 +54,9 @@ async def test_same_round_dispatches_run_concurrently(patch_openai, monkeypatch)
     )
 
     assert answer == "最终答案"
-    assert recorder.max_active == 3  # 串行实现下 max_active == 1 → 此测试先失败
+    assert recorder.max_active == min(3, agent._DISPATCH_CONCURRENCY_LIMIT)
+    # 并行性保持（串行实现下 == 1）；2026-09-23 起受节流上限约束，
+    # 2026-09-24 上限 3→2，3 路同轮为 2+1 波、峰值即上限
 
 
 async def test_tool_results_appended_in_protocol_order(patch_openai, monkeypatch):
