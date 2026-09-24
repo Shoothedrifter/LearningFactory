@@ -24,7 +24,7 @@ load_dotenv(Path.cwd() / ".env")
 
 from .agent import run_main_agent_stream, load_prompt, load_skills
 
-app = FastAPI(title="多智能体系统")
+app = FastAPI(title="学习工厂")
 
 # 挂载静态文件目录
 STATIC_DIR = Path(__file__).parent / "static"

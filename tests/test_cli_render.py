@@ -123,3 +123,4 @@ async def test_main_stream_renders_process_lines(patch_openai, monkeypatch, caps
     assert "✔ [file_writer] 完成" in out
     assert "研究完成" not in out             # 子 Agent answer 聚合进工具结果，不渲染
     assert "最终答案" in out                 # main 的 answer 整段输出
+    assert "学习工厂已启动" in out           # 启动横幅与系统名一致（钉住，防回退旧称）

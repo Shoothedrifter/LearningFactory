@@ -820,7 +820,7 @@ async def main(resume=None):
         session_path = new_session_path()
 
     print("=" * 60)
-    print(f"多智能体系统已启动（{get_main_agent_model()} 主Agent / {get_sub_agent_model()} 子Agent）")
+    print(f"学习工厂已启动（{get_main_agent_model()} 主Agent / {get_sub_agent_model()} 子Agent）")
     print("输入 'exit' 退出，输入 'clear' 清空对话历史")
     print("=" * 60)
 
