@@ -1,4 +1,4 @@
-# 多智能体系统（GLM-5 重构版）
+# 学习工厂（Learning Factory）
 
 基于智谱 AI GLM-5 的多智能体协作研究系统，直接通过 OpenAI SDK 调用 GLM API，无需 LangChain / LangGraph 等框架依赖。
 
@@ -42,7 +42,7 @@
 │           └── references/
 │               └── progressive-learning.md  # 渐进式学习框架（5 个层级）
 │
-├── tests/                      # pytest 测试（118 项，全 mock 无需真实 API Key）
+├── tests/                      # pytest 测试（123 项，全 mock 无需真实 API Key）
 ├── pyproject.toml              # 打包与依赖真相（入口点 learning-factory、requires-python>=3.11）
 ├── requirements.txt            # git clone 直跑场景的依赖清单（版本以 pyproject.toml 为准）
 └── .env                        # 环境变量（API 密钥，从 .env.example 复制）
@@ -75,10 +75,10 @@
 ```
 
 > **并行执行**：主 Agent 同一轮返回的多个工具调用（包括多个 `dispatch_to_subagent`）通过
-> `asyncio.gather` 并发执行。Skill 工作流要求的"同时分派 3 个子 Agent"是真正的并行——
-> 三个子 Agent 的研究同时进行，总耗时约等于最慢的那个，而非三者之和。
+> `asyncio.gather` 并发执行。Skill 工作流的"同时分派 3 个子 Agent"研究阶段为并发执行，
+> 经信号量节流为同轮最多 2 个同时运行（三路研究呈 2+1 波），总耗时不等于三者之和。
 > 流式版本通过共享事件队列实时转发并行任务的过程事件（事件协议不变，前端无需改动）。
-> **限流防护**：dispatch 并发经信号量节流（同轮最多 3 个子 Agent 同时运行，重试等待期间也占槽），
+> **限流防护**：dispatch 并发经信号量节流（同轮最多 2 个子 Agent 同时运行，重试等待期间也占槽），
 > 撞速率限制（429）自动退避重试一次；同轮指向同一文件的多个 file_writer 任务会被确定性防线
 > 拦截（只放行首个，其余推迟到下一轮），防止并发写同一文件导致内容静默颠倒。
 
@@ -342,7 +342,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-测试覆盖（118 项）：同轮多工具并行执行与消息协议完整性（tool_call_id 顺序回填、单工具失败隔离）、
+测试覆盖（123 项）：同轮多工具并行执行与消息协议完整性（tool_call_id 顺序回填、单工具失败隔离）、
 分块写入硬限制（1500 字符）与覆盖防线、同轮同文件写/dispatch 双防线（路径两级启发式提取）、
 dispatch 429 退避重试与并发节流（信号量）、Skill 渐进披露三层加载、模型配置钉住等。
 
