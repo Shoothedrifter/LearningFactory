@@ -9,10 +9,11 @@ agents/base.py
   因为这个 loop 本质上只有 30 行逻辑，自己写更透明、更易调试。
 """
 
+import asyncio
 import json
 import os
 from typing import AsyncGenerator
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, RateLimitError
 from ..config import get_glm_base_url, get_main_agent_model
 from ..tools import TOOL_REGISTRY
 
@@ -30,6 +31,24 @@ def _get_client() -> AsyncOpenAI:
             base_url=get_glm_base_url(),
         )
     return _glm_client
+
+# ── create 调用的 429 指数退避 ──────────────────────────────────────────────────
+# 2026-09-24 docker 实测（logs/docker_.txt）：子 Agent 中途轮次撞 429 时，dispatch
+# 层的重试只能从头重跑整个子 Agent（10-40 轮白费）。在 create 调用层原地退避重试
+# 可保住已执行的工具轮次；指数序列（2/4/8 秒）用于覆盖账户限流恢复窗口（实测 > 2
+# 秒）。用尽后照常冒泡，由 dispatch 层整跑重试兜底（agent.py）。
+_CREATE_RETRY_DELAYS = (2.0, 4.0, 8.0)
+
+
+async def _create_with_backoff(**kwargs):
+    """chat.completions.create 的 429 指数退避包装：撞限流原地重试，进度零损失。"""
+    for attempt in range(len(_CREATE_RETRY_DELAYS) + 1):
+        try:
+            return await _get_client().chat.completions.create(**kwargs)
+        except RateLimitError:
+            if attempt >= len(_CREATE_RETRY_DELAYS):
+                raise  # 退避用尽，交上层（dispatch 整跑重试 / 主 Agent 兜底）
+            await asyncio.sleep(_CREATE_RETRY_DELAYS[attempt])
 
 # 防止无限循环的最大工具调用轮次
 MAX_TOOL_ROUNDS = 10
@@ -67,7 +86,7 @@ async def run_agent(
 
     for round_num in range(1, max_rounds + 1):
         # ── 1. 调用 GLM ──────────────────────────────────────────────────────
-        response = await _get_client().chat.completions.create(
+        response = await _create_with_backoff(
             model=model,
             messages=[{"role": "system", "content": system_prompt}] + local_messages,
             # 没有工具时传 None，避免 API 报错
@@ -139,7 +158,7 @@ async def run_agent(
 
     # 超出最大轮次 → 强制做一次不带工具的总结调用，让模型输出已有发现
     print(f"  [{agent_name}] 达到最大轮次 ({max_rounds})，请求模型总结已有信息...")
-    summary_response = await _get_client().chat.completions.create(
+    summary_response = await _create_with_backoff(
         model=model,
         messages=[{"role": "system", "content": system_prompt}] + local_messages + [
             {"role": "user", "content": "请根据已收集到的信息，整理并输出你的分析结果。不要再调用任何工具，直接给出总结。"},
@@ -186,7 +205,7 @@ async def run_agent_stream(
     yield _sse_event("status", agent_name, message="开始处理...")
 
     for round_num in range(1, max_rounds + 1):
-        response = await _get_client().chat.completions.create(
+        response = await _create_with_backoff(
             model=model,
             messages=[{"role": "system", "content": system_prompt}] + local_messages,
             tools=tool_schemas if tool_schemas else None,
@@ -266,7 +285,7 @@ async def run_agent_stream(
 
     # 超出最大轮次
     yield _sse_event("status", agent_name, message=f"达到最大轮次 ({max_rounds})，请求模型总结...")
-    summary_response = await _get_client().chat.completions.create(
+    summary_response = await _create_with_backoff(
         model=model,
         messages=[{"role": "system", "content": system_prompt}] + local_messages + [
             {"role": "user", "content": "请根据已收集到的信息，整理并输出你的分析结果。不要再调用任何工具，直接给出总结。"},
