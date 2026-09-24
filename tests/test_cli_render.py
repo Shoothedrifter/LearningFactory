@@ -49,7 +49,7 @@ def test_error_line():
     assert line is not None and "boom" in line
 
 
-async def test_main_stream_renders_process_lines(patch_openai, monkeypatch, capsys):
+async def test_main_stream_renders_process_lines(patch_openai, monkeypatch, capsys, tmp_path):
     """main() 走流式版：子 Agent 过程行实时打印，答案整段输出。"""
     import json
     from learning_factory import agent
@@ -60,7 +60,8 @@ async def test_main_stream_renders_process_lines(patch_openai, monkeypatch, caps
     monkeypatch.setenv("GLM_API_KEY", "fake-key")
     monkeypatch.setattr(agent, "load_prompt", lambda f: "测试提示词")
     monkeypatch.setattr(agent, "load_skills", lambda: "")
-    monkeypatch.setattr(agent, "new_session_path", lambda: __import__("pathlib").Path("/tmp/lf-test-session.jsonl"))
+    # 会话文件重定向到 pytest 临时目录（不写 /tmp 固定路径，避免跨运行追加与 CI 碰撞）
+    monkeypatch.setattr(agent, "new_session_path", lambda: tmp_path / "session.jsonl")
     inputs = iter(["查一下", "exit"])
     monkeypatch.setattr("builtins.input", lambda *a: next(inputs))
     # dispatch file_writer → subagent start/done 事件 + 两轮文本收尾。

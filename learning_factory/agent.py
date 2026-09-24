@@ -25,7 +25,10 @@ from dotenv import load_dotenv
 from .agents.base import run_agent
 from .agents.subagents import SUBAGENT_RUNNERS, SUBAGENT_STREAM_RUNNERS
 from .config import get_glm_base_url, get_main_agent_model, get_sub_agent_model
-from .session import new_session_path, append_message, load_session, latest_session_path
+from .session import (
+    new_session_path, append_message, load_session, latest_session_path,
+    sanitize_session_messages,
+)
 from .tools import NOTION_TOOL_SCHEMAS, WEB_TOOL_SCHEMAS, FILESYSTEM_TOOL_SCHEMAS, TOOL_REGISTRY
 from .tools.skills import get_skill_manifest, SKILL_TOOL_SCHEMA, get_output_root_dir
 
@@ -788,13 +791,11 @@ async def main(resume=None):
         rpath = Path(resume) if resume != "latest" else latest_session_path()
         restored = load_session(rpath) if rpath and rpath.exists() else None
         if restored:
-            conversation_history = restored
-            # 裁掉尾部连续 user 消息：上一轮异常退出时内存里已 pop 但磁盘已落盘，
-            # 这类孤儿 user 不进请求上下文（磁盘文件保留原样，只裁内存）
-            while conversation_history and conversation_history[-1]["role"] == "user":
-                conversation_history.pop()
+            # 装载清洗：异常轮次残留的孤儿 user（磁盘已落盘、内存已 pop）不进上下文——
+            # 连续 user 段压缩为段尾一条、整体尾部压到 0（磁盘文件保留原样）
+            conversation_history = sanitize_session_messages(restored)
             session_path = rpath
-            print(f"[系统] 已恢复会话 {rpath.name}（{len(restored)} 条消息）")
+            print(f"[系统] 已恢复会话 {rpath.name}（{len(conversation_history)} 条消息）")
         else:
             conversation_history = []
             session_path = new_session_path()

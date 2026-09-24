@@ -131,3 +131,72 @@ async def test_main_resume_trims_trailing_orphan_user(tmp_path, monkeypatch, pat
     assert msgs[-2] == {"role": "assistant", "content": "旧回答"}
     roles = [m["role"] for m in msgs]
     assert not any(a == "user" and b == "user" for a, b in zip(roles, roles[1:]))
+
+
+# ── 装载清洗：孤儿 user 的中段封存（终审 2026-09-24 Minor #1）──
+# 异常轮次磁盘已落盘孤儿 user、内存已 pop；同会话继续对话会把孤儿压进中段，
+# 尾部裁剪永远够不到——清洗统一规则：连续 user 段压缩为段尾一条，
+# 整体尾部 user 段压到 0（新一轮输入前不应有未回应 user）。磁盘永不改写。
+
+
+def _u(c):
+    return {"role": "user", "content": c}
+
+
+def _a(c):
+    return {"role": "assistant", "content": c}
+
+
+def test_sanitize_compresses_mid_user_run():
+    """中段连续 user（孤儿被后续轮次封存）：压缩为段尾一条，孤儿缺席。"""
+    cleaned = session.sanitize_session_messages(
+        [_u("问1"), _a("答1"), _u("孤儿问题"), _u("问3"), _a("答3")]
+    )
+    assert cleaned == [_u("问1"), _a("答1"), _u("问3"), _a("答3")]
+
+
+def test_sanitize_drops_trailing_users():
+    """整体尾部连续 user（异常退出残留）：全部裁掉。"""
+    cleaned = session.sanitize_session_messages([_u("问1"), _a("答1"), _u("孤儿")])
+    assert cleaned == [_u("问1"), _a("答1")]
+
+
+def test_sanitize_clean_history_untouched():
+    """干净的交替历史原样返回（幂等）。"""
+    msgs = [_u("问1"), _a("答1"), _u("问2"), _a("答2")]
+    assert session.sanitize_session_messages(msgs) == msgs
+
+
+async def test_main_resume_squeezes_mid_orphan_user(tmp_path, monkeypatch, patch_openai):
+    """中段孤儿会话 resume：孤儿不进请求上下文，历史无连续 user。"""
+    from learning_factory import agent
+
+    sess_dir = tmp_path / "sessions"; sess_dir.mkdir()
+    old = sess_dir / "mid-orphan.jsonl"
+    for m in [_u("问1"), _a("答1"), _u("孤儿问题"), _u("问3"), _a("答3")]:
+        session.append_message(old, m)
+
+    monkeypatch.setattr(session, "SESSIONS_DIR", sess_dir)
+    monkeypatch.setenv("GLM_API_KEY", "fake-key")
+    monkeypatch.setattr(agent, "load_prompt", lambda f: "测试提示词")
+    monkeypatch.setattr(agent, "load_skills", lambda: "")
+    inputs = iter(["新问题", "exit"])
+    monkeypatch.setattr("builtins.input", lambda *a: next(inputs))
+    captured = {}
+
+    async def fake_run_main_agent_stream(**kwargs):
+        captured["messages"] = list(kwargs["messages"])
+        yield json.dumps({"type": "answer", "agent": "main", "content": "新回答"},
+                         ensure_ascii=False)
+
+    monkeypatch.setattr(agent, "run_main_agent_stream", fake_run_main_agent_stream)
+    patch_openai()
+
+    await agent.main(resume=str(old))
+
+    msgs = captured["messages"]
+    # 孤儿缺席（中段封存被清洗）；保留的问3/答3 原样进上下文
+    assert all(m["content"] != "孤儿问题" for m in msgs)
+    assert {"role": "user", "content": "问3"} in msgs
+    roles = [m["role"] for m in msgs]
+    assert not any(a == "user" and b == "user" for a, b in zip(roles, roles[1:]))

@@ -46,3 +46,24 @@ def latest_session_path():
         return None
     files = sorted(SESSIONS_DIR.glob("*.jsonl"), reverse=True)
     return files[0] if files else None
+
+
+def sanitize_session_messages(messages):
+    """
+    装载清洗：恢复会话时过滤异常轮次残留的孤儿 user 消息。
+
+    残留来源：某轮 user 已落盘但模型回答失败（内存已 pop、磁盘未回滚）。
+    同会话继续对话会把孤儿压进中段，尾部裁剪永远够不到（终审实测）。
+    统一规则：连续 user 段压缩为段尾一条（前段是"问了未获答"的过期问题），
+    整体尾部 user 段压到 0（新一轮输入前不应有未回应 user）。
+    只清洗装载进上下文的消息，磁盘文件保留原样。
+    """
+    cleaned = []
+    for msg in messages:
+        if msg.get("role") == "user" and cleaned and cleaned[-1].get("role") == "user":
+            cleaned[-1] = msg  # 连续 user：后者覆盖前者（保留段尾）
+            continue
+        cleaned.append(msg)
+    while cleaned and cleaned[-1].get("role") == "user":
+        cleaned.pop()
+    return cleaned
