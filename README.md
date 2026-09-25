@@ -58,27 +58,30 @@ pip install -e ".[web,dev]"            # 可编辑安装 + Web/开发可选依�
 
 ```env
 # 默认供应商获取地址：https://bigmodel.cn → API 密钥
-GLM_API_KEY="your-api-key-here"
+LLM_API_KEY="your-api-key-here"
 ```
 
-也可以不建 `.env`，直接导出环境变量：`export GLM_API_KEY="你的密钥"`。
+也可以不建 `.env`，直接导出环境变量：`export LLM_API_KEY="你的密钥"`。
 
 注意：程序只加载**运行目录**下的 `.env`，不做向上查找——在其他目录运行时请在该目录放置 `.env`。未配置 Key 时启动即打印获取与配置指引并退出，不会等到首次调用才报错。
 
-**换用其他 OpenAI 兼容供应商**：把 `GLM_BASE_URL` 设为该供应商端点，并按其模型列表覆盖 `GLM_MAIN_MODEL` / `GLM_SUB_MODEL` / `GLM_REPO_MODEL`。注意：三个研究工具（网页搜索/抓取、仓库读取）默认走智谱 MCP 服务并以同一 Key 认证，换供应商时研究能力需另行处理。
+**换用其他 OpenAI 兼容供应商**：把 `LLM_BASE_URL` 设为该供应商端点，并按其模型列表覆盖 `LLM_MAIN_MODEL` / `LLM_SUB_MODEL` / `LLM_REPO_MODEL`。三个研究工具（网页搜索/抓取、仓库读取）默认走智谱 MCP 服务——换供应商时设 `MCP_API_KEY` 为智谱 Key 即可保留研究能力（不设则与 `LLM_API_KEY` 共用）。
 
 模型切换、MCP 端点覆盖等全部环境变量（写进 `.env` 或直接导出均可）：
 
 | 环境变量 | 必需 | 默认值 | 用途 |
 |----------|------|--------|------|
-| `GLM_API_KEY` | 是 | —（未配置则启动即退出） | GLM API 密钥，同时用于 MCP 认证 |
-| `GLM_BASE_URL` | 否 | `https://open.bigmodel.cn/api/paas/v4/` | GLM OpenAI 兼容端点（自建代理/兼容网关时覆盖） |
-| `GLM_MAIN_MODEL` | 否 | `glm-5` | 主 Agent 模型 |
-| `GLM_SUB_MODEL` | 否 | `glm-5-turbo` | 子 Agent 通用模型（docs_researcher / web_researcher / file_writer） |
-| `GLM_REPO_MODEL` | 否 | `glm-5` | repo_analyzer 专用模型 |
-| `GLM_MCP_WEB_SEARCH_URL` | 否 | `https://open.bigmodel.cn/api/mcp/web_search_prime/mcp` | MCP 网页搜索端点 |
-| `GLM_MCP_WEB_READER_URL` | 否 | `https://open.bigmodel.cn/api/mcp/web_reader/mcp` | MCP 网页抓取端点 |
-| `GLM_MCP_ZREAD_URL` | 否 | `https://open.bigmodel.cn/api/mcp/zread/mcp` | MCP GitHub 仓库读取端点 |
+| `LLM_API_KEY` | 是 | —（未配置则启动即退出） | 模型供应商 API 密钥 |
+| `LLM_BASE_URL` | 否 | `https://open.bigmodel.cn/api/paas/v4/` | 模型供应商 OpenAI 兼容端点（自建代理/兼容网关时覆盖） |
+| `LLM_MAIN_MODEL` | 否 | `glm-5` | 主 Agent 模型 |
+| `LLM_SUB_MODEL` | 否 | `glm-5-turbo` | 子 Agent 通用模型（docs_researcher / web_researcher / file_writer） |
+| `LLM_REPO_MODEL` | 否 | `glm-5` | repo_analyzer 专用模型 |
+| `MCP_API_KEY` | 否 | 回落 `LLM_API_KEY` | MCP 研究工具独立认证（「别家 LLM + 智谱 MCP」时设） |
+| `MCP_WEB_SEARCH_URL` | 否 | `https://open.bigmodel.cn/api/mcp/web_search_prime/mcp` | MCP 网页搜索端点 |
+| `MCP_WEB_READER_URL` | 否 | `https://open.bigmodel.cn/api/mcp/web_reader/mcp` | MCP 网页抓取端点 |
+| `MCP_ZREAD_URL` | 否 | `https://open.bigmodel.cn/api/mcp/zread/mcp` | MCP GitHub 仓库读取端点 |
+
+> 旧 `GLM_*` 变量名仍可读取（启动时自动映射并提示一次）；建议更新 `.env` 改用新名。
 
 ## 运行
 
@@ -119,7 +122,7 @@ CLI 模式的对话历史逐轮落盘到家目录 `~/.learning_factory/sessions/
 
 ```bash
 pip install -r requirements-dev.txt
-pytest    # 139 项，全 mock 无需真实 API Key
+pytest    # 157 项，全 mock 无需真实 API Key
 ```
 
 ## 注意事项
