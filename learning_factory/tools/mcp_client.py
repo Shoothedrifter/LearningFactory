@@ -12,6 +12,16 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
 
+def _get_mcp_api_key() -> str:
+    """
+    MCP 工具认证 Key：专用 MCP_API_KEY 优先，缺省回落 LLM_API_KEY。
+
+    产品语义（非旧名兼容）：未设专用 Key 即与模型供应商共用——智谱用户
+    零额外配置；「别家 LLM + 智谱 MCP」场景设两个 Key 共存。
+    """
+    return os.environ.get("MCP_API_KEY") or os.environ.get("LLM_API_KEY", "")
+
+
 async def call_mcp_tool(server_url: str, tool_name: str, arguments: dict) -> str:
     """
     调用指定 MCP 服务器上的工具，返回结果文本。
@@ -24,7 +34,7 @@ async def call_mcp_tool(server_url: str, tool_name: str, arguments: dict) -> str
     返回:
         工具返回的文本内容（str）
     """
-    api_key = os.environ.get("GLM_API_KEY", "")
+    api_key = _get_mcp_api_key()
     headers = {}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
