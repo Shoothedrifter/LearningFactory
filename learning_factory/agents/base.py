@@ -14,7 +14,7 @@ import json
 import os
 from typing import AsyncGenerator
 from openai import AsyncOpenAI, RateLimitError
-from ..config import get_glm_base_url, get_main_agent_model
+from ..config import get_base_url, get_main_agent_model
 from ..tools import TOOL_REGISTRY
 
 # ── GLM 客户端初始化（延迟初始化，避免在 load_dotenv() 之前创建）───────────────
@@ -27,8 +27,8 @@ def _get_client() -> AsyncOpenAI:
     global _glm_client
     if _glm_client is None:
         _glm_client = AsyncOpenAI(
-            api_key=os.environ.get("GLM_API_KEY", ""),
-            base_url=get_glm_base_url(),
+            api_key=os.environ.get("LLM_API_KEY", ""),
+            base_url=get_base_url(),
         )
     return _glm_client
 

@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 
 from .agents.base import run_agent
 from .agents.subagents import SUBAGENT_RUNNERS, SUBAGENT_STREAM_RUNNERS
-from .config import get_glm_base_url, get_main_agent_model
+from .config import get_base_url, get_main_agent_model, migrate_legacy_env
 from .session import (
     new_session_path, append_message, load_session, latest_session_path,
     sanitize_session_messages,
@@ -436,8 +436,8 @@ async def run_main_agent(
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI(
-        api_key=os.environ.get("GLM_API_KEY", ""),
-        base_url=get_glm_base_url(),
+        api_key=os.environ.get("LLM_API_KEY", ""),
+        base_url=get_base_url(),
     )
 
     local_messages = list(messages)
@@ -546,8 +546,8 @@ async def run_main_agent_stream(
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI(
-        api_key=os.environ.get("GLM_API_KEY", ""),
-        base_url=get_glm_base_url(),
+        api_key=os.environ.get("LLM_API_KEY", ""),
+        base_url=get_base_url(),
     )
 
     local_messages = list(messages)
@@ -738,19 +738,22 @@ async def run_main_agent_stream(
 
 def ensure_api_key() -> None:
     """
-    启动前置校验 GLM_API_KEY（CLI 与 Web 共用）。
+    启动前置校验 LLM_API_KEY（CLI 与 Web 共用）。
 
     缺失时打印获取与配置指引后以非零码退出——比等到首次 API 调用
     才收到难懂的 401 对新用户友好得多。
     """
-    if os.environ.get("GLM_API_KEY"):
+    # 启动时先把旧 GLM_* 名映射到新名（幂等）：CLI/Web 双入口唯一必经点，
+    # 且此时两处 load_dotenv 均已执行，.env 来源的旧名已进 os.environ
+    migrate_legacy_env()
+    if os.environ.get("LLM_API_KEY"):
         return
-    print("[错误] 未配置 GLM_API_KEY，无法调用模型。", file=sys.stderr)
+    print("[错误] 未配置 LLM_API_KEY，无法调用模型。", file=sys.stderr)
     print("默认对接智谱 GLM（开箱即用），获取地址：https://bigmodel.cn → API 密钥", file=sys.stderr)
-    print("使用其他 OpenAI 兼容供应商：另设 GLM_BASE_URL 与模型名变量（见 README 配置节）", file=sys.stderr)
+    print("使用其他 OpenAI 兼容供应商：另设 LLM_BASE_URL 与模型名变量（见 README 配置节）", file=sys.stderr)
     print("配置方式（二选一）：", file=sys.stderr)
-    print('  1. 在运行目录创建 .env 文件，写入 GLM_API_KEY="你的密钥"（参考 .env.example）', file=sys.stderr)
-    print('  2. 或直接导出环境变量：export GLM_API_KEY="你的密钥"', file=sys.stderr)
+    print('  1. 在运行目录创建 .env 文件，写入 LLM_API_KEY="你的密钥"（参考 .env.example）', file=sys.stderr)
+    print('  2. 或直接导出环境变量：export LLM_API_KEY="你的密钥"', file=sys.stderr)
     raise SystemExit(1)
 
 
