@@ -65,7 +65,7 @@ async def test_main_resume_restores_history(tmp_path, monkeypatch, patch_openai,
 
     monkeypatch.setattr(session, "SESSIONS_DIR", sess_dir)
     # CI 无 .env / 真实 key：补一个假 key 让 ensure_api_key() 前置校验通过
-    monkeypatch.setenv("GLM_API_KEY", "fake-key")
+    monkeypatch.setenv("LLM_API_KEY", "fake-key")
     monkeypatch.setattr(agent, "load_prompt", lambda f: "测试提示词")
     monkeypatch.setattr(agent, "load_skills", lambda: "")
     inputs = iter(["新问题", "exit"])
@@ -106,7 +106,7 @@ async def test_main_resume_trims_trailing_orphan_user(tmp_path, monkeypatch, pat
     session.append_message(old, {"role": "user", "content": "孤儿问题"})
 
     monkeypatch.setattr(session, "SESSIONS_DIR", sess_dir)
-    monkeypatch.setenv("GLM_API_KEY", "fake-key")
+    monkeypatch.setenv("LLM_API_KEY", "fake-key")
     monkeypatch.setattr(agent, "load_prompt", lambda f: "测试提示词")
     monkeypatch.setattr(agent, "load_skills", lambda: "")
     inputs = iter(["新问题", "exit"])
@@ -177,7 +177,7 @@ async def test_main_resume_squeezes_mid_orphan_user(tmp_path, monkeypatch, patch
         session.append_message(old, m)
 
     monkeypatch.setattr(session, "SESSIONS_DIR", sess_dir)
-    monkeypatch.setenv("GLM_API_KEY", "fake-key")
+    monkeypatch.setenv("LLM_API_KEY", "fake-key")
     monkeypatch.setattr(agent, "load_prompt", lambda f: "测试提示词")
     monkeypatch.setattr(agent, "load_skills", lambda: "")
     inputs = iter(["新问题", "exit"])

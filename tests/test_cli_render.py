@@ -95,7 +95,7 @@ async def test_main_stream_renders_process_lines(patch_openai, monkeypatch, caps
     from helpers import make_tool_call, make_tool_calls_response, make_text_response
 
     # CI 无 .env / 真实 key：补假 key 过 ensure_api_key() 前置校验
-    monkeypatch.setenv("GLM_API_KEY", "fake-key")
+    monkeypatch.setenv("LLM_API_KEY", "fake-key")
     monkeypatch.setattr(agent, "load_prompt", lambda f: "测试提示词")
     monkeypatch.setattr(agent, "load_skills", lambda: "")
     # 会话文件重定向到 pytest 临时目录（不写 /tmp 固定路径，避免跨运行追加与 CI 碰撞）
