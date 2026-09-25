@@ -67,6 +67,29 @@ LLM_API_KEY="your-api-key-here"
 
 **换用其他 OpenAI 兼容供应商**：把 `LLM_BASE_URL` 设为该供应商端点，并按其模型列表覆盖 `LLM_MAIN_MODEL` / `LLM_SUB_MODEL` / `LLM_REPO_MODEL`。三个研究工具（网页搜索/抓取、仓库读取）默认走智谱 MCP 服务——换供应商时设 `MCP_API_KEY` 为智谱 Key 即可保留研究能力（不设则与 `LLM_API_KEY` 共用）。
 
+非智谱用户的最小配置是 **4 个变量**——只填 `LLM_API_KEY` 不够（默认端点与模型名都是智谱的，别家 Key 会 401、智谱模型名会报不存在）。以 Kimi 与 DeepSeek 为例（模型名以各供应商当前列表为准）：
+
+```env
+# Kimi（Moonshot）：https://platform.moonshot.cn → API Key 管理
+LLM_API_KEY="<Kimi 的 Key>"
+LLM_BASE_URL="https://api.moonshot.cn/v1"
+LLM_MAIN_MODEL="<按 Kimi 模型列表填写>"
+LLM_SUB_MODEL="<按 Kimi 模型列表填写>"
+LLM_REPO_MODEL="<按 Kimi 模型列表填写>"
+
+# DeepSeek：https://platform.deepseek.com → API Keys
+LLM_API_KEY="<DeepSeek 的 Key>"
+LLM_BASE_URL="https://api.deepseek.com/v1"
+LLM_MAIN_MODEL="deepseek-chat"
+LLM_SUB_MODEL="deepseek-chat"
+LLM_REPO_MODEL="deepseek-chat"
+```
+
+**没有智谱账号时的研究工具**：三个研究工具的默认端点是智谱 MCP，`MCP_API_KEY` 回落到 `LLM_API_KEY` 时用的是别家 Key，调用会 401。两条路：
+
+1. 覆盖 `MCP_WEB_SEARCH_URL` / `MCP_WEB_READER_URL` / `MCP_ZREAD_URL`，指向任何兼容的 MCP 服务或自建代理；
+2. 或接受研究工具不可用——主 Agent 调度、Notion 工具、本地文件读写不受影响。
+
 模型切换、MCP 端点覆盖等全部环境变量（写进 `.env` 或直接导出均可）：
 
 | 环境变量 | 必需 | 默认值 | 用途 |
