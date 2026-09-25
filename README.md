@@ -117,7 +117,7 @@ CLI 模式的对话历史逐轮落盘到家目录 `~/.learning_factory/sessions/
 
 ```bash
 pip install -r requirements-dev.txt
-pytest    # 134 项，全 mock 无需真实 API Key
+pytest    # 139 项，全 mock 无需真实 API Key
 ```
 
 ## 注意事项
