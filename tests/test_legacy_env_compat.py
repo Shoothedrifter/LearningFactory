@@ -5,11 +5,12 @@ docs/superpowers/specs/2026-09-26-vendor-neutral-0.2.0-design.md）。
 映射后旧名删除（幂等），命中时 stderr 恰一行迁移提示。
 """
 
+import importlib
 import os
 
 import pytest
 
-from learning_factory import agent, config
+from learning_factory import agent, config, server
 
 
 @pytest.mark.parametrize("old,new", sorted(config._LEGACY_ENV_MAP.items()))
@@ -78,8 +79,22 @@ def test_no_glm_names_in_source_except_config():
     offenders = [
         f"{p.relative_to(pkg.parent)}:{i + 1}: {line.strip()}"
         for p in sorted(pkg.rglob("*.py"))
-        if p.name != "config.py"
+        if p != pkg / "config.py"
         for i, line in enumerate(p.read_text(encoding="utf-8").splitlines())
         if "GLM_" in line
     ]
     assert offenders == [], "发现 GLM_ 残留:\n" + "\n".join(offenders)
+
+
+def test_server_module_level_migrate(monkeypatch, capsys, tmp_path):
+    """uvicorn 直启（非 __main__）不经过 ensure_api_key——模块导入期必须
+    自带旧名迁移，否则旧 .env 用户首条消息 401（0.1.x 直读旧名可用，
+    属改名引入的回归，终审 Important）。"""
+    # chdir 到空目录再 reload：模块级 load_dotenv 只认 cwd 的 .env，
+    # 隔离开发者真实 .env（若含新名，迁移会因新名已设而跳过导致假红）
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.setenv("GLM_API_KEY", "legacy-key")
+    importlib.reload(server)
+    assert os.environ["LLM_API_KEY"] == "legacy-key"
+    assert "GLM_API_KEY" not in os.environ

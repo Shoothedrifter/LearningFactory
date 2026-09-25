@@ -34,9 +34,9 @@ async def web_fetch(url: str) -> str:
     )
 
 
-# ── Tool Schema（供 GLM function calling 使用）─────────────────────────────────
+# ── Tool Schema（供模型 function calling 使用）────────────────────────────────
 
-# OpenAI 格式的工具定义，GLM-4 原生兼容此格式
+# OpenAI 格式的工具定义，默认供应商端点原生兼容此格式
 WEB_TOOL_SCHEMAS = [
     {
         "type": "function",

@@ -22,6 +22,13 @@ from fastapi.staticfiles import StaticFiles
 # 与 agent.py 同语义：只认运行目录（cwd）下的 .env，保证启动指引与实际加载行为一致
 load_dotenv(Path.cwd() / ".env")
 
+# 模块级旧名迁移：uvicorn 直启（learning_factory.server:app）不走 __main__
+# 的 ensure_api_key，旧名必须在导入期就地迁移，否则旧 .env 用户
+# 首条消息 401（python -m 入径由 ensure_api_key 覆盖，此处幂等无害）
+from .config import migrate_legacy_env
+
+migrate_legacy_env()
+
 from .agent import run_main_agent_stream, load_prompt, load_skills
 
 app = FastAPI(title="学习工厂")
