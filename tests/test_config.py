@@ -1,7 +1,6 @@
 """
 tests/test_config.py
 配置层测试：LLM_*/MCP_* 环境变量覆盖与默认值（函数式读取，先例 get_output_root_dir）。
-旧 GLM_* 名的兼容层测试见 test_legacy_env_compat.py。
 """
 
 import pytest

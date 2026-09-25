@@ -40,7 +40,7 @@
 │           └── references/
 │               └── progressive-learning.md  # 渐进式学习框架（5 个层级）
 │
-├── tests/                      # pytest 测试（158 项，全 mock 无需真实 API Key）
+├── tests/                      # pytest 测试（145 项，全 mock 无需真实 API Key）
 ├── pyproject.toml              # 打包与依赖真相（入口点 learning-factory、requires-python>=3.11）
 ├── requirements.txt            # git clone 直跑场景的依赖清单（版本以 pyproject.toml 为准）
 └── .env                        # 环境变量（API 密钥，从 .env.example 复制）
@@ -232,8 +232,6 @@ Web 模式下，`POST /chat` 端点以 `text/event-stream` 推送以下事件：
 | `MCP_WEB_READER_URL` | 否 | `https://open.bigmodel.cn/api/mcp/web_reader/mcp` | MCP 网页抓取端点 |
 | `MCP_ZREAD_URL` | 否 | `https://open.bigmodel.cn/api/mcp/zread/mcp` | MCP GitHub 仓库读取端点 |
 
-> 兼容层：旧 `GLM_*` 变量名仍可读取——`config.py` 的 `migrate_legacy_env` 在启动时按映射表自动改名并提示一次（`tests/test_legacy_env_compat.py` 钉住），建议更新 `.env` 改用新名。
-
 各 Agent 使用的模型（默认值，均可用上表环境变量调整）：
 
 | Agent | 模型 | 覆盖变量 | 说明 |
@@ -277,10 +275,10 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-测试覆盖（158 项）：同轮多工具并行执行与消息协议完整性（tool_call_id 顺序回填、单工具失败隔离）、
+测试覆盖（145 项）：同轮多工具并行执行与消息协议完整性（tool_call_id 顺序回填、单工具失败隔离）、
 分块写入硬限制（1500 字符）与覆盖防线、同轮同文件写/dispatch 双防线（路径两级启发式提取）、
 dispatch 429 退避重试与并发节流（信号量）、Skill 渐进披露三层加载、模型配置钉住、
-旧变量名兼容层（`test_legacy_env_compat.py`）与 MCP Key 回落（`test_mcp_key_fallback.py`）等。
+供应商中立钉住（`test_no_glm_names.py`）与 MCP Key 回落（`test_mcp_key_fallback.py`）等。
 
 ## 注意事项
 

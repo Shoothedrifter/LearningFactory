@@ -11,7 +11,6 @@ from learning_factory import agent
 
 def test_missing_key_exits_with_guidance(monkeypatch, capsys):
     monkeypatch.delenv("LLM_API_KEY", raising=False)
-    monkeypatch.delenv("GLM_API_KEY", raising=False)   # 旧名残留会经迁移变新名，需一并清
     with pytest.raises(SystemExit) as exc:
         agent.ensure_api_key()
     assert exc.value.code == 1
@@ -30,6 +29,5 @@ async def test_main_exits_before_banner_when_key_missing(monkeypatch):
     """main() 在打印横幅之前完成校验（用户无 key 时看不到假启动）。"""
     import asyncio
     monkeypatch.delenv("LLM_API_KEY", raising=False)
-    monkeypatch.delenv("GLM_API_KEY", raising=False)
     with pytest.raises(SystemExit):
         await agent.main(resume=None)

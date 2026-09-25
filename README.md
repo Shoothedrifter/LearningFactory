@@ -81,8 +81,6 @@ LLM_API_KEY="your-api-key-here"
 | `MCP_WEB_READER_URL` | 否 | `https://open.bigmodel.cn/api/mcp/web_reader/mcp` | MCP 网页抓取端点 |
 | `MCP_ZREAD_URL` | 否 | `https://open.bigmodel.cn/api/mcp/zread/mcp` | MCP GitHub 仓库读取端点 |
 
-> 旧 `GLM_*` 变量名仍可读取（启动时自动映射并提示一次）；建议更新 `.env` 改用新名。
-
 ## 运行
 
 **CLI 模式（终端交互）：**
@@ -122,7 +120,7 @@ CLI 模式的对话历史逐轮落盘到家目录 `~/.learning_factory/sessions/
 
 ```bash
 pip install -r requirements-dev.txt
-pytest    # 158 项，全 mock 无需真实 API Key
+pytest    # 145 项，全 mock 无需真实 API Key
 ```
 
 ## 注意事项
