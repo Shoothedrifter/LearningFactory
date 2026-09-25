@@ -16,7 +16,8 @@ def test_missing_key_exits_with_guidance(monkeypatch, capsys):
     assert exc.value.code == 1
     err = capsys.readouterr().err
     assert "GLM_API_KEY" in err
-    assert "bigmodel.cn" in err          # 获取地址
+    assert "bigmodel.cn" in err          # 默认供应商（智谱 GLM）获取地址
+    assert "OpenAI 兼容" in err          # 换供应商线索（系统不绑定智谱）
     assert ".env" in err                 # 配置方式指引
 
 def test_present_key_passes_silently(monkeypatch, capsys):

@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 
 from .agents.base import run_agent
 from .agents.subagents import SUBAGENT_RUNNERS, SUBAGENT_STREAM_RUNNERS
-from .config import get_glm_base_url, get_main_agent_model, get_sub_agent_model
+from .config import get_glm_base_url, get_main_agent_model
 from .session import (
     new_session_path, append_message, load_session, latest_session_path,
     sanitize_session_messages,
@@ -746,7 +746,8 @@ def ensure_api_key() -> None:
     if os.environ.get("GLM_API_KEY"):
         return
     print("[错误] 未配置 GLM_API_KEY，无法调用模型。", file=sys.stderr)
-    print("获取地址：https://bigmodel.cn → API 密钥", file=sys.stderr)
+    print("默认对接智谱 GLM（开箱即用），获取地址：https://bigmodel.cn → API 密钥", file=sys.stderr)
+    print("使用其他 OpenAI 兼容供应商：另设 GLM_BASE_URL 与模型名变量（见 README 配置节）", file=sys.stderr)
     print("配置方式（二选一）：", file=sys.stderr)
     print('  1. 在运行目录创建 .env 文件，写入 GLM_API_KEY="你的密钥"（参考 .env.example）', file=sys.stderr)
     print('  2. 或直接导出环境变量：export GLM_API_KEY="你的密钥"', file=sys.stderr)
@@ -827,7 +828,9 @@ async def main(resume=None):
         session_path = new_session_path()
 
     print("=" * 60)
-    print(f"学习工厂已启动（{get_main_agent_model()} 主Agent / {get_sub_agent_model()} 子Agent）")
+    # 横幅不展示模型名：默认供应商（智谱 GLM）只是出厂配置而非系统定性，
+    # 模型名对用户无信息量且暴露供应商绑定（test_cli_render 钉住无 glm 字样）
+    print("学习工厂已启动")
     print("输入 'exit' 退出，输入 'clear' 清空对话历史")
     print("=" * 60)
 
@@ -899,7 +902,8 @@ def run_cli():
     """
     parser = argparse.ArgumentParser(
         prog="learning-factory",
-        description="GLM 多智能体协作研究系统：主 Agent 调度 docs/repo/web/file_writer 四个子 Agent",
+        # --help 对外文案：不带默认供应商字样（供应商中立，同 README 首段策略）
+        description="多智能体协作研究系统：主 Agent 调度 docs/repo/web/file_writer 四个子 Agent",
     )
     parser.add_argument(
         "--output-dir",

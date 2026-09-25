@@ -1,6 +1,6 @@
 # 学习工厂（Learning Factory）
 
-基于智谱 AI GLM 的多智能体协作研究系统，直接通过 OpenAI 兼容 SDK 调用 GLM API，无需 LangChain / LangGraph 等框架依赖。
+多智能体协作研究系统，直接通过 OpenAI 兼容 SDK 调用大模型 API，无需 LangChain / LangGraph 等框架依赖。默认对接智谱 GLM（注册即用），也可切换到其他 OpenAI 兼容供应商（见[配置](#配置)）。
 
 系统由一个**主 Agent**（协调者）和四个**子 Agent**（三路研究专家 + 专职写入引擎）组成，通过 ReAct 循环自动调用工具、分发任务、综合结果。告诉它你想学什么——比如「给我制定一份学习 Docker 的学习计划」——它会并行研究官方文档、代码仓库与社区内容，并在本地生成一套可以直接开始的学习路径。
 
@@ -54,16 +54,18 @@ pip install -e ".[web,dev]"            # 可编辑安装 + Web/开发可选依�
 
 ## 配置
 
-在**运行目录**创建 `.env` 文件（可参考 [.env.example](.env.example)），写入智谱 API Key：
+在**运行目录**创建 `.env` 文件（可参考 [.env.example](.env.example)），写入你的 API Key（默认对接智谱 GLM，开箱即用）：
 
 ```env
-# 获取地址：https://bigmodel.cn → API 密钥
+# 默认供应商获取地址：https://bigmodel.cn → API 密钥
 GLM_API_KEY="your-api-key-here"
 ```
 
 也可以不建 `.env`，直接导出环境变量：`export GLM_API_KEY="你的密钥"`。
 
 注意：程序只加载**运行目录**下的 `.env`，不做向上查找——在其他目录运行时请在该目录放置 `.env`。未配置 Key 时启动即打印获取与配置指引并退出，不会等到首次调用才报错。
+
+**换用其他 OpenAI 兼容供应商**：把 `GLM_BASE_URL` 设为该供应商端点，并按其模型列表覆盖 `GLM_MAIN_MODEL` / `GLM_SUB_MODEL` / `GLM_REPO_MODEL`。注意：三个研究工具（网页搜索/抓取、仓库读取）默认走智谱 MCP 服务并以同一 Key 认证，换供应商时研究能力需另行处理。
 
 模型切换、MCP 端点覆盖等全部环境变量（写进 `.env` 或直接导出均可）：
 

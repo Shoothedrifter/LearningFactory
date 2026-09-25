@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "learning_factory"
 version = "0.1.1"
-description = "GLM 多智能体协作研究系统：主 Agent 调度 docs/repo/web/file_writer 四个子 Agent 完成工具学习、研究与长文档写入"
+description = "多智能体协作研究系统：主 Agent 调度 docs/repo/web/file_writer 四个子 Agent 完成工具学习、研究与长文档写入"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
