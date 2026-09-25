@@ -68,3 +68,18 @@ def test_ensure_api_key_passes_with_legacy_name(monkeypatch):
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.setenv("GLM_API_KEY", "legacy-key")
     agent.ensure_api_key()             # 不抛 SystemExit 即通过
+
+
+def test_no_glm_names_in_source_except_config():
+    """钉住：包源码零 GLM_ 字样（字符串与注释都算），唯 config.py 豁免——
+    旧名只允许活在 _LEGACY_ENV_MAP 一处（spec 验收标准）。"""
+    from pathlib import Path
+    pkg = Path(config.__file__).parent
+    offenders = [
+        f"{p.relative_to(pkg.parent)}:{i + 1}: {line.strip()}"
+        for p in sorted(pkg.rglob("*.py"))
+        if p.name != "config.py"
+        for i, line in enumerate(p.read_text(encoding="utf-8").splitlines())
+        if "GLM_" in line
+    ]
+    assert offenders == [], "发现 GLM_ 残留:\n" + "\n".join(offenders)

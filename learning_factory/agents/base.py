@@ -17,8 +17,8 @@ from openai import AsyncOpenAI, RateLimitError
 from ..config import get_base_url, get_main_agent_model
 from ..tools import TOOL_REGISTRY
 
-# ── GLM 客户端初始化（延迟初始化，避免在 load_dotenv() 之前创建）───────────────
-# 智谱 AI (bigmodel.cn) 完全兼容 OpenAI SDK，只需替换 base_url 和 api_key
+# ── 模型客户端初始化（延迟初始化，避免在 load_dotenv() 之前创建）───────────────
+# 默认端点（智谱 GLM）完全兼容 OpenAI SDK，只需替换 base_url 和 api_key
 _glm_client: AsyncOpenAI | None = None
 
 
@@ -70,7 +70,7 @@ async def run_agent(
         tool_schemas:   该 Agent 可用的工具定义列表（OpenAI function calling 格式）
         messages:       对话历史（[{"role": "user", "content": "..."}, ...]）
         model:          使用的 GLM 模型名称；None 时运行时经 config 层取默认
-                        （主 Agent 层 GLM_MAIN_MODEL）
+                        （主 Agent 层 LLM_MAIN_MODEL）
         agent_name:     用于日志输出的 Agent 名称
         max_rounds:     最大工具调用轮次（默认 MAX_TOOL_ROUNDS）
 
@@ -191,7 +191,7 @@ async def run_agent_stream(
     """
     流式版本的 Agent Loop：通过 yield 推送 SSE 事件。
 
-    model 为 None 时运行时经 config 层取默认（主 Agent 层 GLM_MAIN_MODEL）。
+    model 为 None 时运行时经 config 层取默认（主 Agent 层 LLM_MAIN_MODEL）。
 
     事件类型:
         status    — 状态更新（开始、轮次等）

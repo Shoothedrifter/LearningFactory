@@ -427,7 +427,7 @@ async def run_main_agent(
     主 Agent Loop，在 base.run_agent 基础上增加对 dispatch_to_subagent 的处理。
     其余工具（notion/web）直接走 TOOL_REGISTRY。
 
-    model 为 None 时运行时经 config 层取默认（主 Agent 层 GLM_MAIN_MODEL）。
+    model 为 None 时运行时经 config 层取默认（主 Agent 层 LLM_MAIN_MODEL）。
     """
     # 默认模型延迟到调用时从配置层读取（env 可覆盖，测试可 monkeypatch）
     model = model or get_main_agent_model()
@@ -532,7 +532,7 @@ async def run_main_agent_stream(
     """
     主 Agent 的流式版本：通过 yield 推送 SSE 事件。
 
-    model 为 None 时运行时经 config 层取默认（主 Agent 层 GLM_MAIN_MODEL）。
+    model 为 None 时运行时经 config 层取默认（主 Agent 层 LLM_MAIN_MODEL）。
 
     事件类型:
         status    — 状态更新
@@ -743,7 +743,7 @@ def ensure_api_key() -> None:
     缺失时打印获取与配置指引后以非零码退出——比等到首次 API 调用
     才收到难懂的 401 对新用户友好得多。
     """
-    # 启动时先把旧 GLM_* 名映射到新名（幂等）：CLI/Web 双入口唯一必经点，
+    # 启动时先把旧变量名映射到新名（幂等）：CLI/Web 双入口唯一必经点，
     # 且此时两处 load_dotenv 均已执行，.env 来源的旧名已进 os.environ
     migrate_legacy_env()
     if os.environ.get("LLM_API_KEY"):
