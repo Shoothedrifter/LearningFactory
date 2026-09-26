@@ -45,12 +45,12 @@ pipx install git+https://github.com/Shoothedrifter/LearningFactory.git
 ```bash
 git clone https://github.com/Shoothedrifter/LearningFactory.git
 cd LearningFactory
-pip install -r requirements.txt        # 直跑（含 Web 模式全家桶）
+pip install -r requirements.txt        # 直跑（完整依赖）
 # 或
-pip install -e ".[web,dev]"            # 可编辑安装 + Web/开发可选依赖
+pip install -e ".[dev]"                # 可编辑安装 + 开发依赖
 ```
 
-> 依赖版本以 [pyproject.toml](pyproject.toml) 为准（openai / httpx / python-dotenv / mcp / beautifulsoup4；Web 模式另需 fastapi + uvicorn）。
+> 依赖版本以 [pyproject.toml](pyproject.toml) 为准（openai / httpx / python-dotenv / mcp / beautifulsoup4）。
 
 ## 配置
 
@@ -116,14 +116,6 @@ python -m learning_factory.agent
 - `--output-dir <目录>`：产物输出根目录（默认 `Learning-Factory/`）
 - 过程实时可见：子 Agent 启动/完成（`▶`/`✔`/`✖`）与工具调用逐行打印，最终答案整段输出
 
-**Web 模式（浏览器访问）：**
-
-```bash
-python -m learning_factory.server
-```
-
-浏览器打开 `http://localhost:8000`：实时过程面板（工具调用、子 Agent 调度）、Markdown 渲染的最终答案、会话管理。
-
 ## 会话持久化（CLI）
 
 CLI 模式的对话历史逐轮落盘到家目录 `~/.learning_factory/sessions/`（JSONL 格式，立即写盘不留缓冲），进程崩溃也保留已写轮次；pipx 场景在任意目录启动都写到同处。
@@ -134,7 +126,7 @@ CLI 模式的对话历史逐轮落盘到家目录 `~/.learning_factory/sessions/
 
 ## 更多文档
 
-架构设计（Agent 协作 / ReAct 循环）、工具系统与分配、MCP 集成、Skill 系统、SSE 事件协议、环境变量全表、与原版 claude_agent_sdk 的对应关系——全部见 **[AGENT.md](AGENT.md)**。
+架构设计（Agent 协作 / ReAct 循环）、工具系统与分配、MCP 集成、Skill 系统、环境变量全表、与原版 claude_agent_sdk 的对应关系——全部见 **[AGENT.md](AGENT.md)**。
 
 ## 开发与测试
 

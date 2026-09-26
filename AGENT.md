@@ -193,6 +193,8 @@ CLI 模式同样走流式版本（`main()` 调用 `run_main_agent_stream`），�
 
 ## Web 模式协议
 
+> **状态：暂不开放（follow up）**——`server.py` 待修复，当前以 CLI 为准。本节保留协议现状供修复参照。
+
 ### SSE 事件类型
 
 Web 模式下，`POST /chat` 端点以 `text/event-stream` 推送以下事件：
@@ -285,6 +287,5 @@ dispatch 429 退避重试与并发节流（信号量）、Skill 渐进披露三�
 - `learning_factory/prompts/` 目录下的 5 个 `.md` 文件中，4 个研究/协调提示词直接复用原项目，`file_writer.md` 为本项目新增
 - Notion 集成从 MCP 改为直接 REST API，功能等价（search + append block）
 - Bash 工具会在本机执行命令，请确保在可信环境中运行
-- Web 模式的会话存储在内存中，不支持持久化（CLI 模式支持，见[会话持久化](#会话持久化cli)）
 - `Learning-Factory/` 下的 `learning-pytorch/` 等目录是 Skill 系统生成的输出产物（在 `.gitignore` 中，不入库）
 - `.env` 文件包含 API 密钥，不应提交到版本控制
