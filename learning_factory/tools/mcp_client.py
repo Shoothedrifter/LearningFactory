@@ -16,8 +16,9 @@ def _get_mcp_api_key() -> str:
     """
     MCP 工具认证 Key：专用 MCP_API_KEY 优先，缺省回落 LLM_API_KEY。
 
-    产品语义（非旧名兼容）：未设专用 Key 即与模型供应商共用——智谱用户
-    零额外配置；「别家 LLM + 智谱 MCP」场景设两个 Key 共存。
+    产品语义（非旧名兼容）：模型与研究工具默认来自同一供应商，未设
+    专用 Key 即共用模型 API 的 Key；仅当供应商对 MCP 单独发 Key 时
+    才需要另设 MCP_API_KEY。
     """
     return os.environ.get("MCP_API_KEY") or os.environ.get("LLM_API_KEY", "")
 

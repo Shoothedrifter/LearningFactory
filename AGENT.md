@@ -133,7 +133,7 @@
 | `web_reader` | `open.bigmodel.cn/api/mcp/web_reader/mcp` | 网页内容抓取 |
 | `zread` | `open.bigmodel.cn/api/mcp/zread/mcp` | GitHub 仓库读取 |
 
-MCP 调用使用 `MCP_API_KEY` 认证，不设则回落 `LLM_API_KEY` 共用——「别家 LLM + 智谱 MCP」场景把 `MCP_API_KEY` 设为智谱 Key 即可保留研究能力。上表为默认端点（智谱官方），可通过 `MCP_WEB_SEARCH_URL` / `MCP_WEB_READER_URL` / `MCP_ZREAD_URL` 覆盖（见[环境变量配置表](#环境变量配置表)）。非智谱用户注意：模型侧需同时覆盖 `LLM_BASE_URL` 与三个模型名（最小配置 4 变量，README 配置节有 Kimi/DeepSeek 完整示例）；无智谱账号时研究工具需覆盖三个 `MCP_*_URL` 换用其他 MCP 服务，或接受其不可用（主 Agent 调度、Notion、本地文件读写不受影响）。
+MCP 调用使用 `MCP_API_KEY` 认证，不设则回落 `LLM_API_KEY` 共用——模型与研究工具默认来自同一供应商，一套 Key 即可（供应商对 MCP 单独发 Key 时才需并设）。上表为默认端点（智谱官方），可通过 `MCP_WEB_SEARCH_URL` / `MCP_WEB_READER_URL` / `MCP_ZREAD_URL` 覆盖（见[环境变量配置表](#环境变量配置表)）。非智谱用户注意：模型侧需同时覆盖 `LLM_BASE_URL` 与三个模型名（最小配置 4 变量，README 配置节有 Kimi/DeepSeek 完整示例）；研究工具端点随供应商一并切换，供应商不提供 MCP 服务时研究工具不可用（主 Agent 调度、Notion、本地文件读写不受影响）。
 
 ### Skill 系统
 
@@ -227,7 +227,7 @@ Web 模式下，`POST /chat` 端点以 `text/event-stream` 推送以下事件：
 | `LLM_MAIN_MODEL` | 否 | `glm-5` | 主 Agent 模型 |
 | `LLM_SUB_MODEL` | 否 | `glm-5-turbo` | 子 Agent 通用模型（docs_researcher / web_researcher / file_writer） |
 | `LLM_REPO_MODEL` | 否 | `glm-5` | repo_analyzer 专用模型 |
-| `MCP_API_KEY` | 否 | 回落 `LLM_API_KEY` | MCP 研究工具独立认证（「别家 LLM + 智谱 MCP」时设） |
+| `MCP_API_KEY` | 否 | 回落 `LLM_API_KEY` | MCP 研究工具独立认证（供应商对 MCP 单独发 Key 时设） |
 | `MCP_WEB_SEARCH_URL` | 否 | `https://open.bigmodel.cn/api/mcp/web_search_prime/mcp` | MCP 网页搜索端点 |
 | `MCP_WEB_READER_URL` | 否 | `https://open.bigmodel.cn/api/mcp/web_reader/mcp` | MCP 网页抓取端点 |
 | `MCP_ZREAD_URL` | 否 | `https://open.bigmodel.cn/api/mcp/zread/mcp` | MCP GitHub 仓库读取端点 |

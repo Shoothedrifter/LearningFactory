@@ -1,7 +1,7 @@
 """
 tests/test_mcp_key_fallback.py
-C 层：MCP 研究工具独立认证通道。MCP_API_KEY 优先，缺省回落 LLM_API_KEY——
-「别家 LLM + 智谱 MCP」双 Key 共存；智谱用户只设一个 Key 零额外配置（现状保持）。
+MCP 研究工具独立认证通道。MCP_API_KEY 优先，缺省回落 LLM_API_KEY——
+模型与研究工具默认同一供应商、一套 Key 共用；供应商对 MCP 单独发 Key 时才需并设。
 """
 
 from learning_factory.tools import mcp_client

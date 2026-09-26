@@ -54,10 +54,10 @@ pip install -e ".[web,dev]"            # 可编辑安装 + Web/开发可选依�
 
 ## 配置
 
-在**运行目录**创建 `.env` 文件（可参考 [.env.example](.env.example)），写入你的 API Key（默认对接智谱 GLM，开箱即用）：
+在**运行目录**创建 `.env` 文件（可参考 [.env.example](.env.example)），写入你的 API Key（模型供应商如果是智谱 GLM，开箱即用）：
 
 ```env
-# 默认供应商获取地址：https://bigmodel.cn → API 密钥
+# 以 GLM 供应商获取地址为例：https://bigmodel.cn → API 密钥
 LLM_API_KEY="your-api-key-here"
 ```
 
@@ -65,9 +65,9 @@ LLM_API_KEY="your-api-key-here"
 
 注意：程序只加载**运行目录**下的 `.env`，不做向上查找——在其他目录运行时请在该目录放置 `.env`。未配置 Key 时启动即打印获取与配置指引并退出，不会等到首次调用才报错。
 
-**换用其他 OpenAI 兼容供应商**：把 `LLM_BASE_URL` 设为该供应商端点，并按其模型列表覆盖 `LLM_MAIN_MODEL` / `LLM_SUB_MODEL` / `LLM_REPO_MODEL`。三个研究工具（网页搜索/抓取、仓库读取）默认走智谱 MCP 服务——换供应商时设 `MCP_API_KEY` 为智谱 Key 即可保留研究能力（不设则与 `LLM_API_KEY` 共用）。
+**换用其他 OpenAI 兼容供应商**：把 `LLM_BASE_URL` 设为该供应商端点，并按其模型列表覆盖 `LLM_MAIN_MODEL` / `LLM_SUB_MODEL` / `LLM_REPO_MODEL`。三个研究工具（网页搜索/抓取、仓库读取）默认走智谱的 MCP 服务 —— 换供应商时把三个 `MCP_*_URL` 一并切换（见下文「研究工具的 MCP 端点」）。
 
-非智谱用户的最小配置是 **4 个变量**——只填 `LLM_API_KEY` 不够（默认端点与模型名都是智谱的，别家 Key 会 401、智谱模型名会报不存在）。以 Kimi 与 DeepSeek 为例（模型名以各供应商当前列表为准）：
+非智谱 GLM 用户的最小配置是 **4 个变量**——只填 `LLM_API_KEY` 不够（默认端点与模型名都是 GLM，其他供应商的 Key 会 401、与智谱模型名冲突）。以 Kimi 与 DeepSeek 为例（模型名以各供应商当前列表为准）：
 
 ```env
 # Kimi（Moonshot）：https://platform.moonshot.cn → API Key 管理
@@ -85,10 +85,7 @@ LLM_SUB_MODEL="deepseek-chat"
 LLM_REPO_MODEL="deepseek-chat"
 ```
 
-**没有智谱账号时的研究工具**：三个研究工具的默认端点是智谱 MCP，`MCP_API_KEY` 回落到 `LLM_API_KEY` 时用的是别家 Key，调用会 401。两条路：
-
-1. 覆盖 `MCP_WEB_SEARCH_URL` / `MCP_WEB_READER_URL` / `MCP_ZREAD_URL`，指向任何兼容的 MCP 服务或自建代理；
-2. 或接受研究工具不可用——主 Agent 调度、Notion 工具、本地文件读写不受影响。
+**研究工具的 MCP 端点**：三个研究工具默认使用智谱的 MCP 服务，认证与模型 API 共用 `LLM_API_KEY`。换供应商时若其也提供 MCP 服务，把 `MCP_WEB_SEARCH_URL` / `MCP_WEB_READER_URL` / `MCP_ZREAD_URL` 一并切到该供应商端点（Key 继续共用；仅当供应商对 MCP 单独发 Key 时再设 `MCP_API_KEY`）；若不提供，研究工具不可用——主 Agent 调度、Notion 工具、本地文件读写不受影响。
 
 模型切换、MCP 端点覆盖等全部环境变量（写进 `.env` 或直接导出均可）：
 
@@ -99,7 +96,7 @@ LLM_REPO_MODEL="deepseek-chat"
 | `LLM_MAIN_MODEL` | 否 | `glm-5` | 主 Agent 模型 |
 | `LLM_SUB_MODEL` | 否 | `glm-5-turbo` | 子 Agent 通用模型（docs_researcher / web_researcher / file_writer） |
 | `LLM_REPO_MODEL` | 否 | `glm-5` | repo_analyzer 专用模型 |
-| `MCP_API_KEY` | 否 | 回落 `LLM_API_KEY` | MCP 研究工具独立认证（「别家 LLM + 智谱 MCP」时设） |
+| `MCP_API_KEY` | 否 | 回落 `LLM_API_KEY` | MCP 研究工具独立认证（供应商对 MCP 单独发 Key 时设） |
 | `MCP_WEB_SEARCH_URL` | 否 | `https://open.bigmodel.cn/api/mcp/web_search_prime/mcp` | MCP 网页搜索端点 |
 | `MCP_WEB_READER_URL` | 否 | `https://open.bigmodel.cn/api/mcp/web_reader/mcp` | MCP 网页抓取端点 |
 | `MCP_ZREAD_URL` | 否 | `https://open.bigmodel.cn/api/mcp/zread/mcp` | MCP GitHub 仓库读取端点 |
