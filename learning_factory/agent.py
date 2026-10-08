@@ -19,6 +19,15 @@ import weakref
 from pathlib import Path
 from typing import AsyncGenerator
 
+# 导入 readline 仅为其副作用：input() 只有在该模块被导入后才启用
+# GNU readline 行编辑（方向键移动光标、历史上下翻等）；不导入时左键的
+# \x1b[D 会被内核 tty 当普通字节回显成 ^[[D。Windows 等平台无此模块，
+# 缺失时退化为朴素输入，不影响运行。
+try:
+    import readline  # noqa: F401
+except ImportError:
+    pass
+
 from openai import RateLimitError
 from dotenv import load_dotenv
 
