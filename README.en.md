@@ -17,18 +17,88 @@ The system consists of one **main agent** (the coordinator) and four **sub-agent
 - **Artifacts written to local disk**: an overview README, a resource roundup, the main learning-path document, and runnable code examples, all written into a local directory
 - **Multi-turn conversation & task continuation**: when files are left unfinished, a single "continue the task" completes them
 
-Example structure of a generated learning pack:
+Example structure of a generated learning pack (a real one — learning-transformer):
 
 ```
-Learning-Factory/learning-docker/
+Learning-Factory/learning-transformer/
 ├── README.md            # Overview and usage notes
 ├── resources.md         # All reference links (grouped by source)
-├── learning-path.md     # The five-level learning path
+├── learning-path.md     # The five-level learning path (~1,000 lines)
 └── code-examples/
-    ├── 01-hello-world/       # Installation and first commands
-    ├── 02-core-concepts/     # Exercises for core concepts
-    └── 03-patterns/          # Practical pattern examples
+    ├── 01-hello-world/       # 3 starter examples incl. text_generation.py
+    └── 02-core-concepts/     # 4 core exercises incl. multi_head_attention.py
 ```
+
+Nine packs have been generated locally across different topics (transformer / docker / kubernetes / pytorch / ai-agent / vllm, among others). Below are real excerpts from the learning-transformer pack's `learning-path.md` and `resources.md` (translated from the actual Chinese output):
+
+<details>
+<summary>📖 Real excerpt from <code>learning-path.md</code> (click to expand)</summary>
+
+````markdown
+# Transformer Learning Path
+
+## Level 1: Overview & Motivation
+
+### 1.1 What is the Transformer
+The Transformer is a neural-network architecture built on the self-attention mechanism, proposed by Google in 2017, mainly for natural language processing tasks. It completely transformed the NLP field and became the foundation of modern large language models.
+
+### 1.2 Learning Goals
+- Understand the basic concepts and importance of the Transformer
+- Know the limitations of traditional RNN/LSTM models
+- Master the core innovations of the Transformer
+
+### 1.3 Recommended Resources
+- Paper: "Attention Is All You Need"
+- Video: 3Blue1Brown's Transformer visualization
+- Blog: Jay Alammar's "The Illustrated Transformer"
+
+## Level 2: Installation & Hello World
+
+### 2.1 Environment Setup
+```bash
+# Create a virtual environment
+python -m venv transformer_env
+source transformer_env/bin/activate  # Linux/Mac
+# transformer_env\Scripts\activate  # Windows
+
+# Install required libraries
+pip install torch transformers datasets
+pip install numpy matplotlib seaborn
+```
+
+... (followed by Levels 3-5: core concepts / practical patterns / advanced guidance)
+````
+
+</details>
+
+<details>
+<summary>🔗 Real excerpt from <code>resources.md</code> (click to expand)</summary>
+
+```markdown
+# Transformer Learning Resources
+
+## Official Documentation
+- **Hugging Face Transformers docs**: https://huggingface.co/docs/transformers/zh/index
+- **Hugging Face Transformers quick start**: https://transformers.run/
+- **PyTorch Transformer implementation**: https://github.com/jadore801120/attention-is-all-you-need-pytorch
+- **TensorFlow Transformer implementation**: https://github.com/Kyubyong/transformer
+
+## Core Learning Resources
+### Tutorials
+- **Illustrated Transformer tutorial**: https://www.cvmart.net/community/detail/4742
+- **The most approachable Transformer tutorial**: https://zhuanlan.zhihu.com/p/666538342
+- **Transformer explained (fully illustrated)**: https://zhuanlan.zhihu.com/p/338817680
+- **GitHub - datawhalechina/learn-nlp-with-transformers**: https://github.com/datawhalechina/learn-nlp-with-transformers
+
+... (video resources and other sections omitted)
+
+### Papers
+- **Attention Is All You Need**: https://arxiv.org/abs/1706.03762 (the original Transformer paper)
+- **BERT: Pre-training of Deep Bidirectional Transformers**: https://arxiv.org/abs/1810.04805
+- **GPT-3: Language Models are Few-Shot Learners**: https://arxiv.org/abs/2005.14165
+```
+
+</details>
 
 ## Installation
 

@@ -17,18 +17,88 @@
 - **产物落盘本地**：导览 README、资源汇总、学习路径主文档、可运行的代码示例，全部写入本地目录
 - **多轮对话与任务续作**：中途有文件未完成时，一句「继续完成任务」即可补齐
 
-生成的学习包结构示例：
+生成的学习包结构示例（以真实产物 learning-transformer 为例）：
 
 ```
-Learning-Factory/learning-docker/
+Learning-Factory/learning-transformer/
 ├── README.md            # 概览和使用说明
 ├── resources.md         # 全部参考链接（按来源分类）
-├── learning-path.md     # 五级学习路径主体内容
+├── learning-path.md     # 五级学习路径主体内容（约 1000 行）
 └── code-examples/
-    ├── 01-hello-world/       # 安装与第一批命令
-    ├── 02-core-concepts/     # 核心概念配套练习
-    └── 03-patterns/          # 实战模式示例
+    ├── 01-hello-world/       # text_generation.py 等 3 个入门示例
+    └── 02-core-concepts/     # multi_head_attention.py 等 4 个核心练习
 ```
+
+本地已实测生成 9 个不同主题的学习包（transformer / docker / kubernetes / pytorch / ai-agent / vllm 等）。以下为 learning-transformer 包中 `learning-path.md` 与 `resources.md` 的真实片段（节选）：
+
+<details>
+<summary>📖 <code>learning-path.md</code> 真实片段（点击展开）</summary>
+
+````markdown
+# Transformer学习路径
+
+## Level 1: 概览与动机
+
+### 1.1 Transformer简介
+Transformer是一种基于自注意力机制的神经网络架构，在2017年由Google提出，主要用于自然语言处理任务。它彻底改变了NLP领域，成为现代大型语言模型的基础。
+
+### 1.2 学习目标
+- 理解Transformer的基本概念和重要性
+- 了解传统RNN/LSTM模型的局限性
+- 掌握Transformer的核心创新点
+
+### 1.3 推荐资源
+- 论文：《Attention Is All You Need》
+- 视频：3Blue1Brown的Transformer可视化
+- 博客：Jay Alammar的"The Illustrated Transformer"
+
+## Level 2: 安装与Hello World
+
+### 2.1 环境准备
+```bash
+# 创建虚拟环境
+python -m venv transformer_env
+source transformer_env/bin/activate  # Linux/Mac
+# transformer_env\Scripts\activate  # Windows
+
+# 安装必要库
+pip install torch transformers datasets
+pip install numpy matplotlib seaborn
+```
+
+……（后续为 Level 3-5：核心概念 / 实践模式 / 进阶指引）
+````
+
+</details>
+
+<details>
+<summary>🔗 <code>resources.md</code> 真实片段（点击展开）</summary>
+
+```markdown
+# Transformer 学习资源
+
+## 官方文档
+- **Hugging Face Transformers官方文档**: https://huggingface.co/docs/transformers/zh/index
+- **Hugging Face Transformers快速入门**: https://transformers.run/
+- **PyTorch Transformer实现**: https://github.com/jadore801120/attention-is-all-you-need-pytorch
+- **TensorFlow Transformer实现**: https://github.com/Kyubyong/transformer
+
+## 核心学习资源
+### 教程
+- **保姆级教程：图解Transformer**: https://www.cvmart.net/community/detail/4742
+- **史上最通俗易懂的Transformer教程**: https://zhuanlan.zhihu.com/p/666538342
+- **Transformer模型详解（图解最完整版）**: https://zhuanlan.zhihu.com/p/338817680
+- **GitHub - datawhalechina/learn-nlp-with-transformers**: https://github.com/datawhalechina/learn-nlp-with-transformers
+
+……（视频资源等节略）
+
+### 学术论文
+- **Attention Is All You Need**: https://arxiv.org/abs/1706.03762 (原始Transformer论文)
+- **BERT: Pre-training of Deep Bidirectional Transformers**: https://arxiv.org/abs/1810.04805
+- **GPT-3: Language Models are Few-Shot Learners**: https://arxiv.org/abs/2005.14165
+```
+
+</details>
 
 ## 安装
 
