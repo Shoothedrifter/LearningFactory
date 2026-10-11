@@ -1,4 +1,4 @@
-# 学习工厂（Learning Factory）
+# 🏭 学习工厂（Learning Factory）
 
 [English](README.en.md) | **中文**
 
@@ -10,7 +10,7 @@
 
 系统由一个**主 Agent**（协调者）和四个**子 Agent**（三路研究专家 + 专职写入引擎）组成，通过 ReAct 循环自动调用工具、分发任务、综合结果。告诉它你想学什么——比如「给我制定一份学习 Docker 的学习计划」——它会并行研究官方文档、代码仓库与社区内容，并在本地生成一套可以直接开始的学习路径。
 
-## 它能做什么
+## 📒 它能做什么
 
 - **一句话请求，生成完整学习包**：五级渐进式学习路径（概述 → 安装上手 → 核心概念 → 实战模式 → 进阶指引）
 - **三路并行研究**：官方文档、仓库分析、社区教程同时进行，结果交叉印证
@@ -32,7 +32,7 @@ Learning-Factory/learning-transformer/
 本地已实测生成 9 个不同主题的学习包（transformer / docker / kubernetes / pytorch / ai-agent / vllm 等）。以下为 learning-transformer 包中 `learning-path.md` 与 `resources.md` 的真实片段（节选）：
 
 <details>
-<summary>📖 <code>learning-path.md</code> 真实片段（点击展开）</summary>
+<summary>📚 <code>learning-path.md</code> 真实片段（点击展开）</summary>
 
 # Transformer学习路径
 
@@ -96,7 +96,7 @@ pip install numpy matplotlib seaborn
 
 </details>
 
-## 安装
+## 🪛 安装
 
 要求 Python >= 3.11。三种方式任选：
 
@@ -124,7 +124,7 @@ pip install -e ".[dev]"                # 可编辑安装 + 开发依赖
 
 > 依赖版本以 [pyproject.toml](pyproject.toml) 为准（openai / httpx / python-dotenv / mcp / beautifulsoup4）。
 
-## 配置
+## ⚙️ 配置
 
 在**运行目录**创建 `.env` 文件（可参考 [.env.example](.env.example)），写入你的 API Key（模型供应商如果是智谱 GLM，开箱即用）：
 
@@ -173,7 +173,7 @@ LLM_REPO_MODEL="deepseek-chat"
 | `MCP_WEB_READER_URL` | 否 | `https://open.bigmodel.cn/api/mcp/web_reader/mcp` | MCP 网页抓取端点 |
 | `MCP_ZREAD_URL` | 否 | `https://open.bigmodel.cn/api/mcp/zread/mcp` | MCP GitHub 仓库读取端点 |
 
-## 运行
+## 🔋 运行
 
 **CLI 模式（终端交互）：**
 
@@ -188,7 +188,7 @@ python -m learning_factory.agent
 - `--output-dir <目录>`：产物输出根目录（默认 `Learning-Factory/`）
 - 过程实时可见：子 Agent 启动/完成（`▶`/`✔`/`✖`）与工具调用逐行打印，最终答案整段输出
 
-## 会话持久化（CLI）
+## 📀 会话持久化（CLI）
 
 CLI 模式的对话历史逐轮落盘到家目录 `~/.learning_factory/sessions/`（JSONL 格式，立即写盘不留缓冲），进程崩溃也保留已写轮次；pipx 场景在任意目录启动都写到同处。
 
@@ -196,11 +196,11 @@ CLI 模式的对话历史逐轮落盘到家目录 `~/.learning_factory/sessions/
 - 恢复时自动裁掉尾部连续的未回应消息；找不到可恢复会话时开启新会话
 - 输入 `clear` 清空历史时会开启新会话文件，旧会话文件保留
 
-## 更多文档
+## 📂 更多文档
 
 架构设计（Agent 协作 / ReAct 循环）、工具系统与分配、MCP 集成、Skill 系统、环境变量全表、与原版 claude_agent_sdk 的对应关系——全部见 **[AGENT.md](AGENT.md)**。
 
-## 开发与测试
+## ⌨️ 开发与测试
 
 ```bash
 pip install -r requirements-dev.txt
