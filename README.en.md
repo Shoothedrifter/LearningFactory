@@ -34,7 +34,6 @@ Nine packs have been generated locally across different topics (transformer / do
 <details>
 <summary>📖 Real excerpt from <code>learning-path.md</code> (click to expand)</summary>
 
-````markdown
 # Transformer Learning Path
 
 ## Level 1: Overview & Motivation
@@ -67,14 +66,12 @@ pip install numpy matplotlib seaborn
 ```
 
 ... (followed by Levels 3-5: core concepts / practical patterns / advanced guidance)
-````
 
 </details>
 
 <details>
 <summary>🔗 Real excerpt from <code>resources.md</code> (click to expand)</summary>
 
-```markdown
 # Transformer Learning Resources
 
 ## Official Documentation
@@ -96,7 +93,6 @@ pip install numpy matplotlib seaborn
 - **Attention Is All You Need**: https://arxiv.org/abs/1706.03762 (the original Transformer paper)
 - **BERT: Pre-training of Deep Bidirectional Transformers**: https://arxiv.org/abs/1810.04805
 - **GPT-3: Language Models are Few-Shot Learners**: https://arxiv.org/abs/2005.14165
-```
 
 </details>
 

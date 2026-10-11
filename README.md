@@ -34,7 +34,6 @@ Learning-Factory/learning-transformer/
 <details>
 <summary>📖 <code>learning-path.md</code> 真实片段（点击展开）</summary>
 
-````markdown
 # Transformer学习路径
 
 ## Level 1: 概览与动机
@@ -67,14 +66,12 @@ pip install numpy matplotlib seaborn
 ```
 
 ……（后续为 Level 3-5：核心概念 / 实践模式 / 进阶指引）
-````
 
 </details>
 
 <details>
 <summary>🔗 <code>resources.md</code> 真实片段（点击展开）</summary>
 
-```markdown
 # Transformer 学习资源
 
 ## 官方文档
@@ -96,7 +93,6 @@ pip install numpy matplotlib seaborn
 - **Attention Is All You Need**: https://arxiv.org/abs/1706.03762 (原始Transformer论文)
 - **BERT: Pre-training of Deep Bidirectional Transformers**: https://arxiv.org/abs/1810.04805
 - **GPT-3: Language Models are Few-Shot Learners**: https://arxiv.org/abs/2005.14165
-```
 
 </details>
 
