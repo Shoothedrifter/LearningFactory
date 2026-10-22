@@ -11,9 +11,12 @@ import pytest
 from learning_factory.html_builder import (
     Artifacts,
     HtmlBuildError,
+    LevelInfo,
     collect_artifacts,
+    extract_levels,
     highlight_css,
     render_markdown,
+    render_progress,
 )
 
 
@@ -84,3 +87,29 @@ def test_highlight_css():
     """高亮主题 CSS 以 .highlight 为前缀，可整体注入模板。"""
     css = highlight_css()
     assert ".highlight" in css
+
+
+def test_extract_levels_from_rendered_path():
+    """从渲染后的学习路径提取 Level 编号、标题、锚点。"""
+    md = "## Level 1: 概览与动机\n\n正文\n\n## Level 2: 安装\n\n正文\n"
+    levels = extract_levels(render_markdown(md))
+    assert [(lv.num, lv.title) for lv in levels] == [(1, "概览与动机"), (2, "安装")]
+    assert levels[0].anchor == "level-1"
+
+
+def test_extract_levels_empty_when_no_levels():
+    """无 Level 标题的文档 → 空列表（降级：进度条隐藏）。"""
+    assert extract_levels(render_markdown("# 无级别文档\n\n正文")) == []
+
+
+def test_render_progress_marks():
+    """进度条渲染：每个 Level 一个锚点步骤。"""
+    html = render_progress([LevelInfo(1, "概览", "level-1"), LevelInfo(2, "安装", "level-2")])
+    assert 'class="level-progress"' in html
+    assert 'href="#level-1"' in html and 'href="#level-2"' in html
+    assert "概览" in html and "安装" in html
+
+
+def test_render_progress_empty_returns_empty_string():
+    """空 Level 列表 → 空字符串（模板占位符直接替换为空）。"""
+    assert render_progress([]) == ""

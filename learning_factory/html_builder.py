@@ -8,6 +8,7 @@ resources.md / code-examples/）聚合为一个 Notebook Tabs 风格的自包含
 - 产物 HTML 除 Google Fonts 外零外部引用
 """
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -82,3 +83,43 @@ def render_markdown(text: str) -> str:
 def highlight_css() -> str:
     """Pygments friendly 主题（浅色，适配奶油纸面）的 .highlight 样式。"""
     return HtmlFormatter(style="friendly").get_style_defs(".highlight")
+
+
+# 匹配渲染后学习路径的 Level 标题：<h2 id="level-1">Level 1: 概览与动机</h2>
+# （中文部分被 toc 默认 slugify 丢弃，id 恒为 level-N，见规格 §3.2）
+_H2_LEVEL_RE = re.compile(r'<h2 id="([^"]+)">\s*Level\s*(\d+)\s*[:：]\s*(.+?)</h2>')
+
+
+@dataclass(frozen=True)
+class LevelInfo:
+    """学习路径的一个级别（进度条的一个步骤）。"""
+
+    num: int
+    title: str
+    anchor: str
+
+
+def extract_levels(rendered_html: str) -> list[LevelInfo]:
+    """从渲染后的 learning-path HTML 提取 Level 列表；无则空列表。"""
+    levels = []
+    for anchor, num, title in _H2_LEVEL_RE.findall(rendered_html):
+        clean = re.sub(r"<[^>]+>", "", title).strip()
+        levels.append(LevelInfo(num=int(num), title=clean, anchor=anchor))
+    return levels
+
+
+def render_progress(levels: list[LevelInfo]) -> str:
+    """Level 横向进度条 HTML；无级别返回空字符串。
+
+    锚点跳转由模板 JS 接管（先切到学习路径 tab 再平滑滚动），
+    href 仅作无 JS 环境的后备。
+    """
+    if not levels:
+        return ""
+    steps = "".join(
+        f'<a class="progress-step" href="#{lv.anchor}">'
+        f'<span class="step-num">{lv.num:02d}</span>'
+        f'<span class="step-title">{lv.title}</span></a>'
+        for lv in levels
+    )
+    return f'<nav class="level-progress" aria-label="学习进度">{steps}</nav>'
