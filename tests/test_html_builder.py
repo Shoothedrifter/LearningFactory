@@ -10,11 +10,15 @@ import pytest
 
 from learning_factory.html_builder import (
     Artifacts,
+    CodeFile,
+    CodeTree,
     HtmlBuildError,
     LevelInfo,
+    build_code_tree,
     collect_artifacts,
     extract_levels,
     highlight_css,
+    render_code_panel,
     render_markdown,
     render_progress,
 )
@@ -113,3 +117,75 @@ def test_render_progress_marks():
 def test_render_progress_empty_returns_empty_string():
     """空 Level 列表 → 空字符串（模板占位符直接替换为空）。"""
     assert render_progress([]) == ""
+
+
+def _make_code_dir(tmp_path):
+    code = tmp_path / "code-examples"
+    return code
+
+
+def test_build_code_tree_nested_and_highlighted(tmp_path):
+    """嵌套目录收集：相对路径、语言识别、Pygments 高亮。"""
+    code = _make_code_dir(tmp_path)
+    (code / "01-hello").mkdir(parents=True)
+    (code / "01-hello" / "a.yaml").write_text("apiVersion: v1\n", encoding="utf-8")
+    tree = build_code_tree(code)
+    assert len(tree.files) == 1
+    assert tree.files[0].rel_path == "01-hello/a.yaml"
+    assert tree.files[0].language == "yaml"
+    assert 'class="highlight"' in tree.files[0].highlighted_html
+
+
+def test_build_code_tree_unknown_suffix_plain_text(tmp_path):
+    """未知扩展名回退纯文本，不告警不崩溃。"""
+    code = _make_code_dir(tmp_path)
+    code.mkdir()
+    (code / "weird.conf").write_text("key=value\n", encoding="utf-8")
+    tree = build_code_tree(code)
+    assert tree.files[0].language == "text"
+    assert tree.files[0].highlighted_html  # 纯文本也有输出
+
+
+def test_build_code_tree_empty_dir(tmp_path):
+    """空目录 → 空树（code tab 隐藏的判定依据）。"""
+    code = _make_code_dir(tmp_path)
+    code.mkdir()
+    assert build_code_tree(code).files == []
+
+
+def test_build_code_tree_only_empty_subdirs(tmp_path):
+    """只有空子目录 → 同样视为无代码。"""
+    code = _make_code_dir(tmp_path)
+    (code / "01-empty").mkdir(parents=True)
+    assert build_code_tree(code).files == []
+
+
+def test_build_code_tree_non_utf8_raises_with_path(tmp_path):
+    """非 UTF-8 代码文件：报错消息含文件路径（Review Focus #1）。"""
+    code = _make_code_dir(tmp_path)
+    code.mkdir()
+    (code / "bad.py").write_bytes(b"\xff\xfe\x00not-utf8")
+    with pytest.raises(HtmlBuildError, match="bad.py"):
+        build_code_tree(code)
+
+
+def test_render_code_panel_structure():
+    """代码面板：文件树按钮 + 查看器，data-file 与面板 id 对应。"""
+    tree = CodeTree(
+        files=[
+            CodeFile("01/a.yaml", "yaml", '<div class="highlight"><pre></pre></div>'),
+            CodeFile("02/b.py", "python", '<div class="highlight"><pre></pre></div>'),
+        ]
+    )
+    html = render_code_panel(tree)
+    assert 'class="code-file-nav"' in html
+    assert 'class="code-viewer"' in html
+    assert 'data-file="cf0"' in html and 'id="cf0"' in html
+    assert 'data-file="cf1"' in html and 'id="cf1"' in html
+    assert "01/a.yaml" in html and "02/b.py" in html
+    assert ">yaml<" in html and ">python<" in html  # 语言徽标
+
+
+def test_render_code_panel_empty_tree():
+    """空树 → 空字符串（占位符替换为空）。"""
+    assert render_code_panel(CodeTree(files=[])) == ""

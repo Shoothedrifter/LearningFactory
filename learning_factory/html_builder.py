@@ -13,7 +13,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import markdown
+from pygments import highlight as _pyg_highlight
 from pygments.formatters import HtmlFormatter
+from pygments.lexers import TextLexer, get_lexer_by_name
 
 
 class HtmlBuildError(Exception):
@@ -123,3 +125,81 @@ def render_progress(levels: list[LevelInfo]) -> str:
         for lv in levels
     )
     return f'<nav class="level-progress" aria-label="学习进度">{steps}</nav>'
+
+
+# 扩展名 → Pygments 语言名（规格 §4.4）；未列出的扩展名回退纯文本
+_LANG_BY_SUFFIX: dict[str, str] = {
+    ".yaml": "yaml", ".yml": "yaml",
+    ".py": "python",
+    ".sh": "bash", ".bash": "bash",
+    ".js": "javascript", ".ts": "typescript",
+    ".json": "json",
+    ".md": "markdown",
+    ".go": "go", ".rs": "rust",
+    ".sql": "sql", ".toml": "toml",
+    ".txt": "text", ".tf": "hcl",
+}
+
+
+@dataclass(frozen=True)
+class CodeFile:
+    """一个代码示例文件：相对路径、语言名、预高亮 HTML。"""
+
+    rel_path: str
+    language: str
+    highlighted_html: str
+
+
+@dataclass(frozen=True)
+class CodeTree:
+    """code-examples/ 的收集结果；空目录 → files=[]。"""
+
+    files: list[CodeFile]
+
+
+def build_code_tree(code_dir: Path) -> CodeTree:
+    """遍历代码示例目录：按相对路径排序，全部预高亮嵌入。
+
+    非 UTF-8 文件抛 HtmlBuildError（消息含路径，规格 §5）。
+    """
+    code_dir = Path(code_dir)
+    files: list[CodeFile] = []
+    for path in sorted(code_dir.rglob("*")):
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            raise HtmlBuildError(f"文件读取失败（非 UTF-8）: {path}") from exc
+        language = _LANG_BY_SUFFIX.get(path.suffix.lower(), "text")
+        lexer = get_lexer_by_name(language) if language != "text" else TextLexer()
+        highlighted = _pyg_highlight(
+            text, lexer, HtmlFormatter(linenos="table", cssclass="highlight")
+        )
+        files.append(
+            CodeFile(
+                rel_path=path.relative_to(code_dir).as_posix(),
+                language=language,
+                highlighted_html=highlighted,
+            )
+        )
+    return CodeTree(files=files)
+
+
+def render_code_panel(tree: CodeTree) -> str:
+    """代码 tab 面板：左侧文件树按钮组 + 右侧查看器（默认首文件）。"""
+    if not tree.files:
+        return ""
+    nav = "".join(
+        f'<button class="code-file-btn" data-file="cf{i}">'
+        f"{f.rel_path}<i class=\"lang-chip\">{f.language}</i></button>"
+        for i, f in enumerate(tree.files)
+    )
+    viewers = "".join(
+        f'<div class="code-viewer" id="cf{i}">{f.highlighted_html}</div>'
+        for i, f in enumerate(tree.files)
+    )
+    return (
+        f'<div class="code-layout"><nav class="code-file-nav">{nav}</nav>'
+        f'<div class="code-views">{viewers}</div></div>'
+    )
