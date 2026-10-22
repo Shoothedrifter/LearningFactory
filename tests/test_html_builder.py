@@ -236,6 +236,27 @@ def test_template_accessibility_and_motion():
     assert re.search(r"""target\s*=\s*['"]_blank['"]""", tpl)
 
 
+def test_template_nojs_fallback_and_motion_gating():
+    """无 JS 后备（M1）+ 标签过渡/平滑滚动的动效门控（规格 §3.4）。"""
+    tpl = load_template()
+    # M1：panel 隐藏仅在 JS 生效时应用（.js 前缀由 JS 首行添加），
+    # 禁 JS 时四个面板纵向全显、锚点可用（兑现无 JS 后备承诺）
+    assert ".js .panel" in tpl
+    assert "document.body.classList.add('js')" in tpl
+    assert "\n.panel { display: none" not in tpl  # 裸隐藏规则已移除
+    # 门控：side-tab 的 transition 与 hover 位移只在 no-preference 下启用
+    base = re.search(r"\.side-tab \{[^}]*\}", tpl).group(0)
+    assert "transition" not in base  # 基础规则不再携带动画
+    gate = re.search(
+        r"@media \(prefers-reduced-motion: no-preference\) \{\n  \.side-tab \{[^}]*\}",
+        tpl,
+    )
+    assert gate and "transition" in gate.group(0)
+    # 门控：平滑滚动经 matchMedia 条件化为 auto/smooth
+    assert "matchMedia('(prefers-reduced-motion: reduce)')" in tpl
+    assert re.search(r"behavior:\s*reduceMotion \? 'auto' : 'smooth'", tpl)
+
+
 def _make_tech_dir(tmp_path, *, code=True, resources=True, readme=True, path=True):
     """构造一个技术产物目录 fixture（各产物可独立缺席）。"""
     d = tmp_path / "learning-demo"

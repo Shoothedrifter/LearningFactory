@@ -81,17 +81,21 @@ body {
   border: none; border-radius: 0 6px 6px 0;
   padding: clamp(.7rem, 2vh, 1.4rem) clamp(.4rem, 1vw, .7rem);
   cursor: pointer;
-  transition: transform .25s ease, background-color .25s ease;
 }
-.side-tab:hover { transform: translateX(calc(-1 * clamp(3px, .4vw, 6px))); }
+/* 标签过渡与悬停位移仅在用户未偏好减少动效时启用（规格 §3.4） */
+@media (prefers-reduced-motion: no-preference) {
+  .side-tab { transition: transform .25s ease, background-color .25s ease; }
+  .side-tab:hover { transform: translateX(calc(-1 * clamp(3px, .4vw, 6px))); }
+}
 .side-tab[data-tab=overview].active { background: var(--tab-overview); color: var(--ink); }
 .side-tab[data-tab=path].active { background: var(--tab-path); color: var(--ink); }
 .side-tab[data-tab=resources].active { background: var(--tab-resources); color: var(--ink); }
 .side-tab[data-tab=code].active { background: var(--tab-code); color: var(--ink); }
 
 /* === 面板与进场动效 === */
-.panel { display: none; }
-.panel.active { display: block; }
+/* .js 前缀由脚本首行添加：无 JS 环境下四面板纵向全显、锚点可用（后备） */
+.js .panel { display: none; }
+.js .panel.active { display: block; }
 @media (prefers-reduced-motion: no-preference) {
   .panel.active > * {
     animation: rise .5s ease both;
@@ -201,6 +205,10 @@ body {
 </div>
 <script>
 (function () {
+  // JS 生效标记：CSS 以 .js 前缀隐藏面板，无 JS 时全部可见（无闪烁，加载即定）
+  document.body.classList.add('js');
+  var reduceMotion = window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var tabs = Array.prototype.slice.call(document.querySelectorAll('.side-tab'));
   var panels = {
     overview: 'panel-overview', path: 'panel-path',
@@ -235,7 +243,7 @@ body {
       e.preventDefault();
       activate('path', false);
       var el = document.getElementById(a.getAttribute('href').slice(1));
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
+      if (el) el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
     });
   });
   // 代码文件切换
