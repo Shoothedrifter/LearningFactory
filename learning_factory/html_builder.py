@@ -10,12 +10,22 @@ resources.md / code-examples/）聚合为一个 Notebook Tabs 风格的自包含
 
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import markdown
 from pygments import highlight as _pyg_highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import TextLexer, get_lexer_by_name
+
+
+# 构建器版本号（产物页脚标注用；未安装场景回退 unknown）
+try:
+    from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+    _VERSION = _pkg_version("learning-factory")
+except PackageNotFoundError:
+    _VERSION = "unknown"
 
 
 class HtmlBuildError(Exception):
@@ -212,3 +222,69 @@ TEMPLATE_PATH = Path(__file__).parent / "templates" / "learning_page.html"
 def load_template() -> str:
     """读取页面骨架模板（cwd 无关）。"""
     return TEMPLATE_PATH.read_text(encoding="utf-8")
+
+
+def _read_utf8(path: Path) -> str:
+    """读 UTF-8 文件；失败时抛含路径的 HtmlBuildError。"""
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise HtmlBuildError(f"文件读取失败（非 UTF-8）: {path}") from exc
+
+
+# tab 定义：(data-tab 键, 中文标签, 对应 Artifacts 字段名)；code 的显隐另判
+_TABS: tuple[tuple[str, str, str], ...] = (
+    ("overview", "概览", "readme"),
+    ("path", "学习路径", "learning_path"),
+    ("resources", "资源", "resources"),
+)
+
+
+def _render_nav(art: Artifacts, show_code: bool) -> str:
+    """右缘竖排标签：仅渲染存在的产物（规格 §5 缺件降级）。"""
+    buttons = "".join(
+        f'<button class="side-tab" data-tab="{key}">{label}</button>'
+        for key, label, attr in _TABS
+        if getattr(art, attr) is not None
+    )
+    if show_code:
+        buttons += '<button class="side-tab" data-tab="code">代码示例</button>'
+    return buttons
+
+
+def build_html(directory: Path, output: Path | None = None) -> Path:
+    """把技术目录组装为自包含 HTML；返回输出路径。
+
+    缺件产物隐藏对应 tab；默认输出 <目录名>.html 写入该目录。
+    """
+    directory = Path(directory)
+    art = collect_artifacts(directory)
+
+    overview_html = render_markdown(_read_utf8(art.readme)) if art.readme else ""
+    path_html = render_markdown(_read_utf8(art.learning_path)) if art.learning_path else ""
+    resources_html = render_markdown(_read_utf8(art.resources)) if art.resources else ""
+
+    # 学习路径面板 = Level 进度条 + 正文
+    panel_path = render_progress(extract_levels(path_html)) + path_html if path_html else ""
+
+    tree = build_code_tree(art.code_examples) if art.code_examples else CodeTree(files=[])
+    panel_code = render_code_panel(tree)
+
+    # 标题取目录名去 learning- 前缀（learning-kubernetes → kubernetes）
+    tech_name = directory.name.removeprefix("learning-")
+    meta = f"learning-factory {_VERSION} html_builder 构建于 {datetime.now():%Y-%m-%d %H:%M}"
+
+    html = (
+        load_template()
+        .replace("{{PAGE_TITLE}}", f"{tech_name} · Learning Factory")
+        .replace("{{NAV_HTML}}", _render_nav(art, show_code=bool(tree.files)))
+        .replace("{{PANEL_OVERVIEW}}", overview_html)
+        .replace("{{PANEL_LEARNING_PATH}}", panel_path)
+        .replace("{{PANEL_RESOURCES}}", resources_html)
+        .replace("{{PANEL_CODE}}", panel_code)
+        .replace("{{PYGMENTS_CSS}}", highlight_css())
+        .replace("{{BUILD_META}}", meta)
+    )
+    out = output if output is not None else directory / f"{directory.name}.html"
+    out.write_text(html, encoding="utf-8")
+    return out

@@ -84,10 +84,10 @@ body {
   transition: transform .25s ease, background-color .25s ease;
 }
 .side-tab:hover { transform: translateX(calc(-1 * clamp(3px, .4vw, 6px))); }
-.side-tab[data-tab="overview"].active { background: var(--tab-overview); color: var(--ink); }
-.side-tab[data-tab="path"].active { background: var(--tab-path); color: var(--ink); }
-.side-tab[data-tab="resources"].active { background: var(--tab-resources); color: var(--ink); }
-.side-tab[data-tab="code"].active { background: var(--tab-code); color: var(--ink); }
+.side-tab[data-tab=overview].active { background: var(--tab-overview); color: var(--ink); }
+.side-tab[data-tab=path].active { background: var(--tab-path); color: var(--ink); }
+.side-tab[data-tab=resources].active { background: var(--tab-resources); color: var(--ink); }
+.side-tab[data-tab=code].active { background: var(--tab-code); color: var(--ink); }
 
 /* === 面板与进场动效 === */
 .panel { display: none; }

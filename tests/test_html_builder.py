@@ -17,6 +17,7 @@ from learning_factory.html_builder import (
     HtmlBuildError,
     LevelInfo,
     build_code_tree,
+    build_html,
     collect_artifacts,
     extract_levels,
     highlight_css,
@@ -220,3 +221,112 @@ def test_template_accessibility_and_motion():
     assert "#tab=" in tpl  # hash 路由
     # 模板经 JS 设置 target（a.target = '_blank'），断言钉住该行为而非具体空白写法
     assert re.search(r"""target\s*=\s*['"]_blank['"]""", tpl)
+
+
+def _make_tech_dir(tmp_path, *, code=True, resources=True, readme=True, path=True):
+    """构造一个技术产物目录 fixture（各产物可独立缺席）。"""
+    d = tmp_path / "learning-demo"
+    d.mkdir()
+    if readme:
+        (d / "README.md").write_text("# Demo 概览\n\n这是概览。", encoding="utf-8")
+    if path:
+        (d / "learning-path.md").write_text(
+            "## Level 1: 入门\n\n内容一\n\n## Level 2: 进阶\n\n内容二\n",
+            encoding="utf-8",
+        )
+    if resources:
+        (d / "resources.md").write_text(
+            "| 资源 | 链接 |\n|------|------|\n| 官方 | https://example.com |",
+            encoding="utf-8",
+        )
+    if code:
+        (d / "code-examples" / "01").mkdir(parents=True)
+        (d / "code-examples" / "01" / "a.py").write_text("print(1)\n", encoding="utf-8")
+    return d
+
+
+def test_build_html_end_to_end(tmp_path):
+    """四件齐全：输出到技术目录内，四个 tab 与进度条齐全，占位符全替换。"""
+    d = _make_tech_dir(tmp_path)
+    out = build_html(d)
+    assert out == d / "learning-demo.html"
+    html = out.read_text(encoding="utf-8")
+    assert "demo · Learning Factory" in html  # 目录名去 learning- 前缀作标题
+    for tab in ("overview", "path", "resources", "code"):
+        assert f'data-tab="{tab}"' in html, tab
+    assert 'class="level-progress"' in html
+    assert "01/a.py" in html
+    assert "{{" not in html  # 占位符一个不剩
+
+
+def test_build_html_hides_missing_tabs(tmp_path):
+    """缺件降级：缺席产物的 tab 不出现在导航（Review Focus #2）。"""
+    d = _make_tech_dir(tmp_path, code=False, resources=False)
+    html = build_html(d).read_text(encoding="utf-8")
+    assert 'data-tab="code"' not in html
+    assert 'data-tab="resources"' not in html
+    assert 'data-tab="overview"' in html and 'data-tab="path"' in html
+
+
+def test_build_html_empty_code_dir_hides_code_tab(tmp_path):
+    """code-examples 存在但为空：tab 同样隐藏。"""
+    d = _make_tech_dir(tmp_path, code=False)
+    (d / "code-examples").mkdir()
+    html = build_html(d).read_text(encoding="utf-8")
+    assert 'data-tab="code"' not in html
+
+
+def test_build_html_all_missing_raises(tmp_path):
+    """全缺：collect 阶段即报错。"""
+    d = tmp_path / "learning-empty"
+    d.mkdir()
+    with pytest.raises(HtmlBuildError, match="四类产物全缺"):
+        build_html(d)
+
+
+def test_build_html_non_utf8_markdown_raises_with_path(tmp_path):
+    """非 UTF-8 的 md：报错含路径（Review Focus #1）。"""
+    d = _make_tech_dir(tmp_path)
+    (d / "README.md").write_bytes(b"\xff\xfe\x00bad")
+    with pytest.raises(HtmlBuildError, match="README.md"):
+        build_html(d)
+
+
+def test_build_html_offline_no_external_refs_except_fonts(tmp_path):
+    """离线契约：除 Google Fonts 外无任何外部引用（Review Focus #5）。"""
+    html = build_html(_make_tech_dir(tmp_path)).read_text(encoding="utf-8")
+    refs = re.findall(r'(?:src|href)="(https?://[^"]+)"', html)
+    assert all(r.startswith("https://fonts.") for r in refs), refs
+
+
+def test_build_html_without_levels_no_progress(tmp_path):
+    """无 Level 标题：无进度条，页面其余部分正常（Review Focus #3）。"""
+    d = _make_tech_dir(tmp_path)
+    (d / "learning-path.md").write_text("# 没有级别的路径\n\n正文\n", encoding="utf-8")
+    html = build_html(d).read_text(encoding="utf-8")
+    assert 'class="level-progress"' not in html
+    assert 'data-tab="path"' in html
+
+
+def test_build_html_output_override(tmp_path):
+    """--output 覆盖输出路径。"""
+    d = _make_tech_dir(tmp_path)
+    custom = tmp_path / "out" / "custom.html"
+    custom.parent.mkdir()
+    out = build_html(d, output=custom)
+    assert out == custom and custom.exists()
+
+
+def test_build_html_input_dir_untouched(tmp_path):
+    """输入目录只读：构建后产物文件内容不变（Global Constraints）。"""
+    d = _make_tech_dir(tmp_path)
+    before = {
+        p.relative_to(d).as_posix(): p.read_bytes()
+        for p in d.rglob("*") if p.is_file()
+    }
+    build_html(d)
+    after = {
+        p.relative_to(d).as_posix(): p.read_bytes()
+        for p in d.rglob("*") if p.is_file() and p.name != "learning-demo.html"
+    }
+    assert before == after
