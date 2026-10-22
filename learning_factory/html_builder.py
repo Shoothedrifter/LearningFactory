@@ -205,15 +205,56 @@ def build_code_tree(code_dir: Path) -> CodeTree:
     return CodeTree(files=files)
 
 
+def _render_tree_button(idx: int, f: CodeFile) -> str:
+    """文件树按钮：文本只显示文件名（目录名由所在层级体现），
+    title 悬停提示完整相对路径（同名文件跨目录时的辨别线索）。"""
+    name = f.rel_path.rsplit("/", 1)[-1]
+    return (
+        f'<button class="code-file-btn" data-file="cf{idx}"'
+        f' title="{_html.escape(f.rel_path)}">'
+        f"{_html.escape(name)}<i class=\"lang-chip\">{f.language}</i></button>"
+    )
+
+
+def _render_tree_level(items: list[tuple[int, CodeFile]], depth: int) -> str:
+    """递归渲染文件树的一层：直属文件为按钮，子目录为原生 details。
+
+    - 保持 build_code_tree 的排序顺序输出（按钮与目录的相对次序稳定，
+      与 viewer 的 cfN 编号观感一致）
+    - 目录默认 open（信息量与平铺一致，可手动收起；无 JS 亦可开合）
+    """
+    parts: list[str] = []
+    seen_dirs: set[str] = set()
+    for idx, f in items:
+        segs = f.rel_path.split("/")
+        if len(segs) == depth + 1:
+            parts.append(_render_tree_button(idx, f))
+            continue
+        dir_name = segs[depth]
+        if dir_name in seen_dirs:
+            continue
+        seen_dirs.add(dir_name)
+        # 同名前缀子树：收集该目录下全部文件递归渲染（文件数小，线性过滤足够）
+        sub = [(i, g) for i, g in items if g.rel_path.split("/")[depth] == dir_name]
+        parts.append(
+            f'<details class="code-dir" open>'
+            f'<summary><i class="dir-arrow" aria-hidden="true"></i>'
+            f"{_html.escape(dir_name)}</summary>"
+            f'<div class="dir-children">{_render_tree_level(sub, depth + 1)}</div>'
+            f"</details>"
+        )
+    return "".join(parts)
+
+
 def render_code_panel(tree: CodeTree) -> str:
-    """代码 tab 面板：左侧文件树按钮组 + 右侧查看器（默认首文件）。"""
+    """代码 tab 面板：左侧文件树（目录嵌套，规格 §3.2）+ 右侧查看器（默认首文件）。
+
+    data-file="cfN" 与右侧 id="cfN" 一一对应（两侧同源枚举，嵌套不破坏契约）；
+    无子目录的平铺树不输出任何 details 包裹。
+    """
     if not tree.files:
         return ""
-    nav = "".join(
-        f'<button class="code-file-btn" data-file="cf{i}">'
-        f"{f.rel_path}<i class=\"lang-chip\">{f.language}</i></button>"
-        for i, f in enumerate(tree.files)
-    )
+    nav = _render_tree_level(list(enumerate(tree.files)), depth=0)
     viewers = "".join(
         f'<div class="code-viewer" id="cf{i}">{f.highlighted_html}</div>'
         for i, f in enumerate(tree.files)

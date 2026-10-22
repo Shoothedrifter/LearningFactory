@@ -208,6 +208,64 @@ def test_render_code_panel_empty_tree():
     assert render_code_panel(CodeTree(files=[])) == ""
 
 
+def test_render_code_panel_nested_dir_details(tmp_path):
+    """目录嵌套：子目录渲染为默认展开的 details，文件按钮嵌在直属目录层。
+
+    规格 §3.2 左侧文件树（目录嵌套）：目录用原生 <details open>（无 JS
+    可展开收起、可访问性原生），按钮只显示文件名，title 悬停给完整路径。
+    """
+    code = _make_code_dir(tmp_path)
+    code.mkdir()
+    (code / "utils").mkdir()
+    (code / "utils" / "helper.py").write_text("x = 1\n", encoding="utf-8")
+    (code / "top.py").write_text("print(1)\n", encoding="utf-8")
+    html = render_code_panel(build_code_tree(code))
+    # utils 目录：details 默认展开、summary 为目录名
+    m = re.search(
+        r'<details class="code-dir" open>\s*<summary>.*?utils.*?</summary>(.*?)</details>',
+        html, re.S,
+    )
+    assert m, "utils 目录应渲染为默认展开的 details"
+    # utils 下的文件按钮嵌套在 details 内；文件名作按钮文本、全路径进 title
+    assert 'data-file="cf1"' in m.group(1)
+    assert ">helper.py<" in m.group(1)
+    assert 'title="utils/helper.py"' in m.group(1)
+    # 排序在前的顶层文件 top.py（cf0）出现在第一个 details 之前（顶层按钮）
+    assert html.index('data-file="cf0"') < html.index("<details")
+    assert 'title="top.py"' in html
+    # data-file ↔ viewer id 契约在嵌套结构下保持
+    assert 'id="cf0"' in html and 'id="cf1"' in html
+
+
+def test_render_code_panel_flat_files_no_details(tmp_path):
+    """平铺目录（所有文件在根层）：不得多出无意义的 details 包裹。"""
+    code = _make_code_dir(tmp_path)
+    code.mkdir()
+    (code / "a.py").write_text("a = 1\n", encoding="utf-8")
+    (code / "b.yaml").write_text("k: v\n", encoding="utf-8")
+    html = render_code_panel(build_code_tree(code))
+    assert "<details" not in html
+    assert "<summary" not in html
+    assert 'data-file="cf0"' in html and 'data-file="cf1"' in html
+    assert 'class="code-file-nav"' in html
+
+
+def test_render_code_panel_multilevel_dirs(tmp_path):
+    """多层嵌套：a/b/f.py 渲染为 details a > details b > 文件按钮。"""
+    code = _make_code_dir(tmp_path)
+    (code / "a" / "b").mkdir(parents=True)
+    (code / "a" / "b" / "f.py").write_text("f = 1\n", encoding="utf-8")
+    (code / "a" / "g.py").write_text("g = 1\n", encoding="utf-8")
+    html = render_code_panel(build_code_tree(code))
+    assert html.count("<details") == 2  # 两层目录各一个 details
+    # 外层 summary（a）的子容器内紧跟内层目录的 details（深度优先展开）
+    assert re.search(r"</summary>\s*<div class=\"dir-children\">\s*<details", html), \
+        "内层目录 details 应嵌套在外层目录的子容器开头"
+    # 排序（a/b/f.py < a/g.py）：cf0 为深层文件、cf1 为 a 直属文件
+    assert 'title="a/b/f.py"' in html and 'title="a/g.py"' in html
+    assert 'id="cf0"' in html and 'id="cf1"' in html
+
+
 def test_template_exists_and_holds_placeholders():
     """模板随包分发且占位符齐全（Task 6 的替换契约）。"""
     tpl = load_template()
