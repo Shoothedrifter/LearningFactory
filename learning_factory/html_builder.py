@@ -9,6 +9,7 @@ resources.md / code-examples/）聚合为一个 Notebook Tabs 风格的自包含
 """
 
 import argparse
+import html as _html
 import re
 import sys
 from dataclasses import dataclass
@@ -172,17 +173,23 @@ class CodeTree:
 def build_code_tree(code_dir: Path) -> CodeTree:
     """遍历代码示例目录：按相对路径排序，全部预高亮嵌入。
 
-    非 UTF-8 文件抛 HtmlBuildError（消息含路径，规格 §5）。
+    跳过任一路径段以 . 开头的隐藏文件（.DS_Store 等 macOS 系统垃圾，
+    与 git/rsync 的默认忽略惯例一致，避免其阻断构建或混入产物）。
+    非 UTF-8 / 不可读文件抛 HtmlBuildError（消息含路径，规格 §5）。
     """
     code_dir = Path(code_dir)
     files: list[CodeFile] = []
     for path in sorted(code_dir.rglob("*")):
         if not path.is_file():
             continue
+        if any(part.startswith(".") for part in path.relative_to(code_dir).parts):
+            continue
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError as exc:
             raise HtmlBuildError(f"文件读取失败（非 UTF-8）: {path}") from exc
+        except OSError as exc:
+            raise HtmlBuildError(f"文件读取失败: {path}（{exc.strerror or exc}）") from exc
         language = _LANG_BY_SUFFIX.get(path.suffix.lower(), "text")
         lexer = get_lexer_by_name(language) if language != "text" else TextLexer()
         highlighted = _pyg_highlight(
@@ -227,11 +234,17 @@ def load_template() -> str:
 
 
 def _read_utf8(path: Path) -> str:
-    """读 UTF-8 文件；失败时抛含路径的 HtmlBuildError。"""
+    """读 UTF-8 文件；失败时抛含路径的 HtmlBuildError。
+
+    OSError 家族（权限不足、路径实为目录等）同样包装，
+    批量模式下单个目录读取失败不至于裸抛 traceback 中断其余目录。
+    """
     try:
         return path.read_text(encoding="utf-8")
     except UnicodeDecodeError as exc:
         raise HtmlBuildError(f"文件读取失败（非 UTF-8）: {path}") from exc
+    except OSError as exc:
+        raise HtmlBuildError(f"文件读取失败: {path}（{exc.strerror or exc}）") from exc
 
 
 # tab 定义：(data-tab 键, 中文标签, 对应 Artifacts 字段名)；code 的显隐另判
@@ -254,10 +267,39 @@ def _render_nav(art: Artifacts, show_code: bool) -> str:
     return buttons
 
 
+# 模板占位符单 pass 替换：re.sub 不重扫替换产物，
+# 用户内容（模板引擎类学习产物常含字面 {{...}}）不会被二次注入
+_PLACEHOLDER_RE = re.compile(
+    r"\{\{(PAGE_TITLE|NAV_HTML|PANEL_OVERVIEW|PANEL_LEARNING_PATH|"
+    r"PANEL_RESOURCES|PANEL_CODE|PYGMENTS_CSS|BUILD_META)\}\}"
+)
+
+
+def _warn_degradations(directory: Path, art: Artifacts, tree: CodeTree) -> None:
+    """缺件/空 code 树的降级警告到 stderr（规格 §5：tab 隐藏须可见，构建继续）。"""
+    missing = [
+        name
+        for name, value in (
+            ("README.md", art.readme),
+            ("learning-path.md", art.learning_path),
+            ("resources.md", art.resources),
+            ("code-examples", art.code_examples),
+        )
+        if value is None
+    ]
+    if art.code_examples is not None and not tree.files:
+        missing.append("code-examples（空目录）")
+    if missing:
+        print(
+            f"警告：{directory.name} 缺少 {'、'.join(missing)}，对应 tab 将隐藏",
+            file=sys.stderr,
+        )
+
+
 def build_html(directory: Path, output: Path | None = None) -> Path:
     """把技术目录组装为自包含 HTML；返回输出路径。
 
-    缺件产物隐藏对应 tab；默认输出 <目录名>.html 写入该目录。
+    缺件产物隐藏对应 tab 并向 stderr 打警告；默认输出 <目录名>.html 写入该目录。
     """
     directory = Path(directory)
     art = collect_artifacts(directory)
@@ -271,30 +313,43 @@ def build_html(directory: Path, output: Path | None = None) -> Path:
 
     tree = build_code_tree(art.code_examples) if art.code_examples else CodeTree(files=[])
     panel_code = render_code_panel(tree)
+    _warn_degradations(directory, art, tree)
 
-    # 标题取目录名去 learning- 前缀（learning-kubernetes → kubernetes）
-    tech_name = directory.name.removeprefix("learning-")
+    # 标题取目录名去 learning- 前缀（learning-kubernetes → kubernetes）；
+    # 目录名可含 & < 等 HTML 特殊字符，注入 <title> 前先转义
+    tech_name = _html.escape(directory.name.removeprefix("learning-"))
     meta = f"learning-factory {_VERSION} html_builder 构建于 {datetime.now():%Y-%m-%d %H:%M}"
 
-    html = (
-        load_template()
-        .replace("{{PAGE_TITLE}}", f"{tech_name} · Learning Factory")
-        .replace("{{NAV_HTML}}", _render_nav(art, show_code=bool(tree.files)))
-        .replace("{{PANEL_OVERVIEW}}", overview_html)
-        .replace("{{PANEL_LEARNING_PATH}}", panel_path)
-        .replace("{{PANEL_RESOURCES}}", resources_html)
-        .replace("{{PANEL_CODE}}", panel_code)
-        .replace("{{PYGMENTS_CSS}}", highlight_css())
-        .replace("{{BUILD_META}}", meta)
-    )
+    values = {
+        "PAGE_TITLE": f"{tech_name} · Learning Factory",
+        "NAV_HTML": _render_nav(art, show_code=bool(tree.files)),
+        "PANEL_OVERVIEW": overview_html,
+        "PANEL_LEARNING_PATH": panel_path,
+        "PANEL_RESOURCES": resources_html,
+        "PANEL_CODE": panel_code,
+        "PYGMENTS_CSS": highlight_css(),
+        "BUILD_META": meta,
+    }
+    page = _PLACEHOLDER_RE.sub(lambda m: values[m.group(1)], load_template())
+
     out = output if output is not None else directory / f"{directory.name}.html"
-    out.write_text(html, encoding="utf-8")
+    try:
+        out.write_text(page, encoding="utf-8")
+    except OSError as exc:
+        raise HtmlBuildError(f"写出失败: {out}（{exc.strerror or exc}）") from exc
     return out
 
 
+# 技术目录判定的专有特征名：README.md 是通用说明文件名，
+# 单独出现不再判定为技术目录（防止工厂根目录的说明性 README
+# 把批量模式劫持为"构建根目录自身"，子目录静默零产物）
+_STRONG_ARTIFACTS = ("learning-path.md", "resources.md", "code-examples")
+
+
 def _is_tech_dir(path: Path) -> bool:
-    """目录内含任一产物名即视为技术目录（单目录模式判定）。"""
-    return any((path / name).exists() for name in ARTIFACT_NAMES)
+    """技术目录判定：含任一专有产物名，或至少 2 个产物名。"""
+    present = [name for name in ARTIFACT_NAMES if (path / name).exists()]
+    return any(name in _STRONG_ARTIFACTS for name in present) or len(present) >= 2
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -343,6 +398,8 @@ def main(argv: list[str] | None = None) -> int:
         except HtmlBuildError as exc:
             failed += 1
             print(f"警告：跳过 {d.name}：{exc}", file=sys.stderr)
+    # 批量简报汇总行（规格 §4.3：简报须含结果概况）
+    print(f"批量构建完成：成功 {len(tech_dirs) - failed} / 失败 {failed}")
     return 1 if failed else 0
 
 

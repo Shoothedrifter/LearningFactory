@@ -173,6 +173,19 @@ def test_build_code_tree_non_utf8_raises_with_path(tmp_path):
         build_code_tree(code)
 
 
+def test_build_code_tree_skips_dotfiles(tmp_path):
+    """dotfile（.DS_Store 等隐藏系统文件）被跳过：不阻断构建也不进文件树（C1）。"""
+    code = _make_code_dir(tmp_path)
+    code.mkdir()
+    # 真实 .DS_Store 二进制头（含非法 UTF-8 序列，macOS Finder 必然生成）
+    (code / ".DS_Store").write_bytes(b"\x00\x05\x16\xb5\xb0\x21\x0f")
+    (code / "a.py").write_text("print(1)\n", encoding="utf-8")
+    (code / "sub").mkdir()
+    (code / "sub" / ".hidden.py").write_text("x = 1\n", encoding="utf-8")
+    tree = build_code_tree(code)
+    assert [f.rel_path for f in tree.files] == ["a.py"]
+
+
 def test_render_code_panel_structure():
     """代码面板：文件树按钮 + 查看器，data-file 与面板 id 对应。"""
     tree = CodeTree(
@@ -330,3 +343,65 @@ def test_build_html_input_dir_untouched(tmp_path):
         for p in d.rglob("*") if p.is_file() and p.name != "learning-demo.html"
     }
     assert before == after
+
+
+def test_build_html_warns_missing_artifacts_to_stderr(tmp_path, capsys):
+    """缺件降级向 stderr 打警告：含目录名与缺件名（I1 / 规格 §5）。"""
+    d = _make_tech_dir(tmp_path, code=False, resources=False)
+    build_html(d)
+    err = capsys.readouterr().err
+    assert "learning-demo" in err
+    assert "resources.md" in err and "code-examples" in err
+
+
+def test_build_html_warns_empty_code_dir(tmp_path, capsys):
+    """code-examples 存在但为空目录：同样警告（tab 隐藏须可见，I1）。"""
+    d = _make_tech_dir(tmp_path, code=False)
+    (d / "code-examples").mkdir()
+    build_html(d)
+    err = capsys.readouterr().err
+    assert "learning-demo" in err and "code-examples" in err
+
+
+def test_build_html_read_error_oserror_wrapped(tmp_path):
+    """README.md 实为目录（OSError 家族）：包装为含路径的 HtmlBuildError（I2）。"""
+    d = _make_tech_dir(tmp_path)
+    (d / "README.md").unlink()
+    (d / "README.md").mkdir()
+    with pytest.raises(HtmlBuildError, match="README.md"):
+        build_html(d)
+
+
+def test_build_html_output_missing_parent_raises_with_path(tmp_path):
+    """输出路径父目录不存在：HtmlBuildError 含输出路径（I2）。"""
+    d = _make_tech_dir(tmp_path)
+    with pytest.raises(HtmlBuildError, match="nope"):
+        build_html(d, output=tmp_path / "nope" / "x.html")
+
+
+def test_build_html_literal_placeholder_in_content_preserved(tmp_path):
+    """用户内容中的字面占位符不被二次替换（单 pass，I4）。
+
+    模板引擎类技术（Jinja2/Vue 等）的学习产物正文含 {{...}} 是常态，
+    链式 replace 会把整段 CSS/面板注入用户内容。
+    """
+    d = _make_tech_dir(tmp_path)
+    (d / "README.md").write_text(
+        "# 模板示例\n\nJinja2 语法演示：`{{PYGMENTS_CSS}}` 应保持字面。", encoding="utf-8"
+    )
+    html = build_html(d).read_text(encoding="utf-8")
+    # 用户正文中的字面占位符保持原样，且位于 body（style 块之后）
+    assert "{{PYGMENTS_CSS}}" in html
+    assert html.index("{{PYGMENTS_CSS}}") > html.index("</style>")
+    # 真正的 Pygments CSS 仍注入且只在 head 的 style 位置出现一次
+    assert html.count("line-height: 125%") == 1
+    assert html.index("line-height: 125%") < html.index("</style>")
+
+
+def test_build_html_escapes_tech_name_in_title(tmp_path):
+    """目录名含 HTML 特殊字符（&<）：标题注入前转义（M2）。"""
+    d = tmp_path / "learning-a&b<c"
+    d.mkdir()
+    (d / "README.md").write_text("# x", encoding="utf-8")
+    html = build_html(d).read_text(encoding="utf-8")
+    assert "<title>a&amp;b&lt;c · Learning Factory</title>" in html

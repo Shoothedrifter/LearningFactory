@@ -8,14 +8,19 @@ learning-factory-build CLI：单目录/批量/输出覆盖/退出码。
 
 import pytest
 
-from learning_factory.html_builder import HtmlBuildError, main, build_html
+from learning_factory.html_builder import HtmlBuildError, main
 
 
 def _make_tech_dir(parent, name="learning-demo", bad=False):
-    """构造技术目录；bad=True 时写入非 UTF-8 文件制造构建失败。"""
+    """构造技术目录；bad=True 时写入非 UTF-8 文件制造构建失败。
+
+    learning-path.md 是技术目录判定的专有产物名（README.md 单独
+    不再判定，I3 收紧后 fixture 必须含专有名才算技术目录）。
+    """
     d = parent / name
     d.mkdir()
     (d / "README.md").write_bytes(b"\xff\xfe\x00bad" if bad else "# x".encode())
+    (d / "learning-path.md").write_text("## Level 1: 入门\n\n内容\n", encoding="utf-8")
     return d
 
 
@@ -46,6 +51,7 @@ def test_cli_batch_builds_all(tmp_path, capsys):
     assert (factory / "learning-a" / "learning-a.html").exists()
     assert (factory / "learning-b" / "learning-b.html").exists()
     assert not (factory / "not-tech" / "not-tech.html").exists()
+    assert "成功 2 / 失败 0" in capsys.readouterr().out  # 汇总行（I1）
 
 
 def test_cli_batch_partial_failure_continues(tmp_path, capsys):
@@ -88,3 +94,37 @@ def test_cli_empty_factory_root(tmp_path, capsys):
     factory.mkdir()
     assert main([str(factory)]) == 1
     assert "无可构建" in capsys.readouterr().err
+
+
+def test_cli_batch_summary_line(tmp_path, capsys):
+    """批量结束打印"成功 N / 失败 M"汇总行（I1 / 规格 §4.3）。"""
+    factory = tmp_path / "Factory"
+    factory.mkdir()
+    _make_tech_dir(factory, name="learning-a")
+    _make_tech_dir(factory, name="learning-bad", bad=True)
+    assert main([str(factory)]) == 1
+    assert "成功 1 / 失败 1" in capsys.readouterr().out
+
+
+def test_cli_output_missing_parent_readable_error(tmp_path, capsys):
+    """--output 父目录不存在：stderr 给可读错误（非 traceback）、返回 1（I2）。"""
+    d = _make_tech_dir(tmp_path)
+    assert main([str(d), "--output", str(tmp_path / "nope" / "x.html")]) == 1
+    err = capsys.readouterr().err
+    assert "构建失败" in err and "nope" in err
+    assert "Traceback" not in err
+
+
+def test_cli_root_readme_does_not_hijack_batch(tmp_path, capsys):
+    """根目录仅含 README.md 不算技术目录：批量模式仍构建子目录（I3）。
+
+    旧行为下根 README 会把批量劫持为"构建根目录自身"，
+    子目录零产物且退出码 0（最危险的静默失效）。
+    """
+    factory = tmp_path / "Factory"
+    factory.mkdir()
+    (factory / "README.md").write_text("# 工厂使用说明\n", encoding="utf-8")
+    _make_tech_dir(factory, name="learning-a")
+    assert main([str(factory)]) == 0
+    assert (factory / "learning-a" / "learning-a.html").exists()
+    assert not (factory / "Factory.html").exists()
