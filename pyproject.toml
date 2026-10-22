@@ -34,6 +34,8 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "mcp>=1.0.0,<2",
     "beautifulsoup4>=4.12.0",
+    "markdown>=3.6",
+    "pygments>=2.17",
 ]
 
 [project.urls]
@@ -55,10 +57,11 @@ dev = [
 
 [project.scripts]
 learning-factory = "learning_factory.agent:run_cli"
+learning-factory-build = "learning_factory.html_builder:main"
 
 [tool.setuptools.packages.find]
 include = ["learning_factory*"]
 
 [tool.setuptools.package-data]
-# 提示词/技能/静态页随包分发（load_prompt/SKILLS_DIR/STATIC_DIR 均按包内路径读取）
-learning_factory = ["prompts/*.md", "skills/**/*.md", "static/*.html"]
+# 提示词/技能/静态页/学习页模板随包分发（load_prompt/SKILLS_DIR/STATIC_DIR/load_template 均按包内路径读取）
+learning_factory = ["prompts/*.md", "skills/**/*.md", "static/*.html", "templates/*.html"]
