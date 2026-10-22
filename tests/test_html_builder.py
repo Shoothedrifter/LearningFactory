@@ -8,7 +8,13 @@ tests/test_html_builder.py
 
 import pytest
 
-from learning_factory.html_builder import Artifacts, HtmlBuildError, collect_artifacts
+from learning_factory.html_builder import (
+    Artifacts,
+    HtmlBuildError,
+    collect_artifacts,
+    highlight_css,
+    render_markdown,
+)
 
 
 def test_collect_artifacts_all_present(tmp_path):
@@ -45,3 +51,36 @@ def test_artifacts_default_none():
     art = Artifacts()
     assert art.readme is None and art.learning_path is None
     assert art.resources is None and art.code_examples is None
+
+
+def test_render_markdown_heading_and_bold():
+    """基础块级渲染：标题与行内强调。"""
+    html = render_markdown("# 标题\n\n**粗体**")
+    assert "<h1" in html and "标题" in html
+    assert "<strong>粗体</strong>" in html
+
+
+def test_render_markdown_table():
+    """resources.md 全是表格：tables 扩展必须生效。"""
+    md = "| 资源 | 链接 |\n|------|------|\n| 官方 | https://example.com |"
+    assert "<table>" in render_markdown(md)
+
+
+def test_render_markdown_fenced_code_highlighted():
+    """围栏代码块经 codehilite+Pygments 高亮（生成 span）。"""
+    md = "```python\nprint('hi')\n```"
+    html = render_markdown(md)
+    assert 'class="highlight"' in html
+    assert "<span" in html
+
+
+def test_render_markdown_h2_gets_anchor_id():
+    """toc 扩展为 h2 生成锚点 id（Level 进度条依赖）。"""
+    html = render_markdown("## Level 1: 概览\n\n正文")
+    assert '<h2 id="level-1">' in html
+
+
+def test_highlight_css():
+    """高亮主题 CSS 以 .highlight 为前缀，可整体注入模板。"""
+    css = highlight_css()
+    assert ".highlight" in css

@@ -11,6 +11,9 @@ resources.md / code-examples/）聚合为一个 Notebook Tabs 风格的自包含
 from dataclasses import dataclass
 from pathlib import Path
 
+import markdown
+from pygments.formatters import HtmlFormatter
+
 
 class HtmlBuildError(Exception):
     """构建失败：消息面向用户，尽量包含文件路径。"""
@@ -63,3 +66,19 @@ def collect_artifacts(directory: Path) -> Artifacts:
     ):
         raise HtmlBuildError(f"四类产物全缺，无法构建：{directory}")
     return found
+
+
+# markdown 渲染配置：表格（resources.md）、围栏代码（学习路径内代码块）、
+# toc（标题锚点，进度条跳转依赖）、codehilite（Pygments 高亮）
+_MD_EXTENSIONS = ["tables", "fenced_code", "toc", "codehilite"]
+_MD_CONFIG = {"codehilite": {"css_class": "highlight", "guess_lang": False}}
+
+
+def render_markdown(text: str) -> str:
+    """markdown 文本 → HTML 片段。"""
+    return markdown.markdown(text, extensions=_MD_EXTENSIONS, extension_configs=_MD_CONFIG)
+
+
+def highlight_css() -> str:
+    """Pygments friendly 主题（浅色，适配奶油纸面）的 .highlight 样式。"""
+    return HtmlFormatter(style="friendly").get_style_defs(".highlight")
