@@ -8,7 +8,9 @@ resources.md / code-examples/）聚合为一个 Notebook Tabs 风格的自包含
 - 产物 HTML 除 Google Fonts 外零外部引用
 """
 
+import argparse
 import re
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -288,3 +290,61 @@ def build_html(directory: Path, output: Path | None = None) -> Path:
     out = output if output is not None else directory / f"{directory.name}.html"
     out.write_text(html, encoding="utf-8")
     return out
+
+
+def _is_tech_dir(path: Path) -> bool:
+    """目录内含任一产物名即视为技术目录（单目录模式判定）。"""
+    return any((path / name).exists() for name in ARTIFACT_NAMES)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """learning-factory-build 入口：0 成功 / 1 失败 / 2 用法错误。"""
+    parser = argparse.ArgumentParser(
+        prog="learning-factory-build",
+        description="把学习产物目录聚合为一个自包含交互式 HTML 文件",
+    )
+    parser.add_argument(
+        "target",
+        help="技术目录（如 Learning-Factory/learning-kubernetes）或工厂根目录（批量）",
+    )
+    parser.add_argument(
+        "--output", default=None, help="输出 HTML 路径（仅单目录模式有效）",
+    )
+    args = parser.parse_args(argv)
+
+    target = Path(args.target)
+    if not target.is_dir():
+        print(f"错误：目标不是目录：{target}", file=sys.stderr)
+        return 1
+
+    if _is_tech_dir(target):
+        try:
+            out = build_html(target, Path(args.output) if args.output else None)
+        except HtmlBuildError as exc:
+            print(f"构建失败：{exc}", file=sys.stderr)
+            return 1
+        print(f"已构建 {out}")
+        return 0
+
+    # 批量模式：目标是工厂根目录
+    if args.output:
+        parser.error("--output 仅在单目录模式有效")  # SystemExit(2)
+    tech_dirs = sorted(
+        d for d in target.iterdir() if d.is_dir() and _is_tech_dir(d)
+    )
+    if not tech_dirs:
+        print(f"错误：{target} 下无可构建的技术目录", file=sys.stderr)
+        return 1
+    failed = 0
+    for d in tech_dirs:
+        try:
+            out = build_html(d)
+            print(f"已构建 {out}")
+        except HtmlBuildError as exc:
+            failed += 1
+            print(f"警告：跳过 {d.name}：{exc}", file=sys.stderr)
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
