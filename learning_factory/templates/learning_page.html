@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{PAGE_TITLE}}</title>
+<!--
+  西文字体在线加载，离线自动降级到系统栈（中文正文恒走系统字体）。
+  替换字体：改下方 <link> 与 :root 中 --font-* 变量即可。
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,700&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* === 主题变量（Notebook Tabs） === */
+:root {
+  --bg-outer: #2d2d2d;
+  --bg-paper: #f8f6f1;
+  --ink: #1a1a1a;
+  --ink-soft: #55504a;
+  --tab-overview: #98d4bb;   /* 薄荷 */
+  --tab-path: #c7b8ea;       /* 薰衣草 */
+  --tab-resources: #f4b8c5;  /* 粉 */
+  --tab-code: #a8d8ea;       /* 天蓝 */
+  --font-display: "Bodoni Moda", "Songti SC", "Noto Serif SC", serif;
+  --font-body: "DM Sans", "PingFang SC", "Hiragino Sans GB",
+               "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* === 外框桌面（深灰 + 细网格纹理） === */
+body {
+  margin: 0;
+  background: var(--bg-outer);
+  background-image:
+    linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+  color: var(--ink);
+  font-family: var(--font-body);
+  line-height: 1.75;
+}
+.desk {
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; align-items: flex-start;
+  gap: clamp(2px, .6vw, 8px);
+  padding: clamp(10px, 3vw, 40px);
+  box-sizing: border-box;
+}
+
+/* === 奶油纸面卡片 + 装订孔 === */
+.paper {
+  flex: 1; min-width: 0;
+  position: relative;
+  background: var(--bg-paper);
+  border-radius: 6px;
+  box-shadow: 0 clamp(4px,1vw,14px) rgba(0,0,0,.35);
+  padding: clamp(1.2rem, 4vw, 3.5rem) clamp(1.2rem, 5vw, 4.5rem);
+}
+.binder-holes {
+  position: absolute;
+  left: clamp(6px, 1.2vw, 16px); top: 0; bottom: 0;
+  display: flex; flex-direction: column; justify-content: space-evenly;
+}
+.binder-holes i {
+  width: clamp(8px, 1.2vw, 14px); height: clamp(8px, 1.2vw, 14px);
+  border-radius: 50%;
+  background: var(--bg-outer);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.5);
+}
+
+/* === 右缘竖排彩色标签（tab 本体） === */
+.side-tabs { display: flex; flex-direction: column; gap: clamp(4px, .8vh, 10px); }
+.side-tab {
+  writing-mode: vertical-rl;
+  font-family: var(--font-body); font-weight: 700;
+  font-size: clamp(.75rem, 1.4vh, .95rem);
+  letter-spacing: .2em;
+  color: var(--bg-paper);
+  background: rgba(248,246,241,.18);
+  border: none; border-radius: 0 6px 6px 0;
+  padding: clamp(.7rem, 2vh, 1.4rem) clamp(.4rem, 1vw, .7rem);
+  cursor: pointer;
+  transition: transform .25s ease, background-color .25s ease;
+}
+.side-tab:hover { transform: translateX(calc(-1 * clamp(3px, .4vw, 6px))); }
+.side-tab[data-tab="overview"].active { background: var(--tab-overview); color: var(--ink); }
+.side-tab[data-tab="path"].active { background: var(--tab-path); color: var(--ink); }
+.side-tab[data-tab="resources"].active { background: var(--tab-resources); color: var(--ink); }
+.side-tab[data-tab="code"].active { background: var(--tab-code); color: var(--ink); }
+
+/* === 面板与进场动效 === */
+.panel { display: none; }
+.panel.active { display: block; }
+@media (prefers-reduced-motion: no-preference) {
+  .panel.active > * {
+    animation: rise .5s ease both;
+  }
+  .panel.active > *:nth-child(2) { animation-delay: .06s; }
+  .panel.active > *:nth-child(3) { animation-delay: .12s; }
+  .panel.active > *:nth-child(4) { animation-delay: .18s; }
+  .panel.active > *:nth-child(5) { animation-delay: .24s; }
+  .panel.active > *:nth-child(n+6) { animation-delay: .3s; }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+/* === 学习进度条（Level 1-5 横向） === */
+.level-progress {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: clamp(.4rem, 2vw, 1.6rem);
+  border-bottom: 2px solid rgba(26,26,26,.12);
+  padding-bottom: clamp(.6rem, 2vh, 1.2rem);
+  margin-bottom: clamp(.8rem, 3vh, 2rem);
+}
+.progress-step { text-decoration: none; color: var(--ink); display: flex; align-items: baseline; gap: .35em; }
+.progress-step .step-num {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: clamp(1.4rem, 4vw, 2.2rem); line-height: 1;
+}
+.progress-step .step-title { font-size: clamp(.72rem, 1.6vw, .9rem); color: var(--ink-soft); }
+
+/* === markdown 排版 === */
+.panel h1, .panel h2, .panel h3 {
+  font-family: var(--font-display); font-weight: 700;
+  line-height: 1.25; margin: 1.6em 0 .6em;
+}
+.panel h1 { font-size: clamp(1.7rem, 5vw, 2.6rem); }
+.panel h2 {
+  font-size: clamp(1.3rem, 3.6vw, 1.9rem);
+  border-left: 4px solid var(--tab-path); padding-left: .5em;
+}
+.panel a { color: #7a5ea8; }
+.panel table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: clamp(.8rem, 1.8vw, .95rem); }
+.panel th, .panel td { border: 1px solid rgba(26,26,26,.18); padding: .45em .7em; text-align: left; }
+.panel th { background: rgba(26,26,26,.06); }
+.panel blockquote {
+  margin: 1em 0; padding: .2em 1em;
+  border-left: 3px solid var(--tab-resources); color: var(--ink-soft);
+}
+.panel :not(pre) > code {
+  font-family: var(--font-mono); font-size: .9em;
+  background: rgba(26,26,26,.07); padding: .1em .35em; border-radius: 3px;
+}
+
+/* === 代码 tab：文件树 + 查看器 === */
+.code-layout { display: flex; gap: clamp(.6rem, 2vw, 1.4rem); align-items: flex-start; }
+.code-file-nav {
+  flex: 0 0 auto; max-width: 34%;
+  max-height: min(70vh, 640px); overflow: auto;
+  display: flex; flex-direction: column; gap: .3rem;
+}
+.code-file-btn {
+  font-family: var(--font-mono); font-size: clamp(.68rem, 1.5vw, .82rem);
+  text-align: left; border: 1px solid rgba(26,26,26,.2);
+  background: rgba(255,255,255,.5); color: var(--ink);
+  border-radius: 4px; padding: .45em .6em; cursor: pointer;
+}
+.code-file-btn.active { background: var(--tab-code); }
+.lang-chip { font-style: normal; opacity: .6; margin-left: .5em; }
+.code-views { flex: 1; min-width: 0; }
+.code-viewer { display: none; }
+.code-viewer:first-of-type, .code-viewer.active { display: block; }
+.code-viewer pre {
+  font-family: var(--font-mono); font-size: clamp(.72rem, 1.6vw, .88rem);
+  line-height: 1.6; overflow: auto; margin: 0;
+  background: #fff; border: 1px solid rgba(26,26,26,.15);
+  border-radius: 4px; padding: .8em 1em;
+  max-height: min(75vh, 720px);
+}
+.panel .highlight pre { overflow: auto; background: #fff; border-radius: 4px; padding: .8em 1em; border: 1px solid rgba(26,26,26,.15); }
+.panel td.linenos { text-align: right; color: var(--ink-soft); padding-right: .6em; user-select: none; }
+
+/* === 响应式：窄屏标签折叠为底部横排 === */
+@media (max-width: 720px) {
+  .desk { flex-direction: column-reverse; padding: clamp(8px, 3vw, 16px); gap: 8px; }
+  .side-tabs { flex-direction: row; justify-content: center; flex-wrap: wrap; }
+  .side-tab { writing-mode: horizontal-tb; border-radius: 6px 6px 0 0; letter-spacing: .05em; }
+  .code-layout { flex-direction: column; }
+  .code-file-nav { max-width: 100%; max-height: 30vh; }
+}
+@media (max-height: 700px) { .panel h1 { margin-top: .6em; } }
+@media (max-height: 600px) { .level-progress { padding-bottom: .4rem; } }
+@media (max-height: 500px) { .panel { font-size: .95em; } }
+
+{{PYGMENTS_CSS}}
+</style>
+</head>
+<body>
+<div class="desk">
+  <main class="paper">
+    <div class="binder-holes" aria-hidden="true"><i></i><i></i><i></i></div>
+    <section id="panel-overview" class="panel">{{PANEL_OVERVIEW}}</section>
+    <section id="panel-path" class="panel">{{PANEL_LEARNING_PATH}}</section>
+    <section id="panel-resources" class="panel">{{PANEL_RESOURCES}}</section>
+    <section id="panel-code" class="panel">{{PANEL_CODE}}</section>
+  </main>
+  <nav class="side-tabs" aria-label="产物导航">{{NAV_HTML}}</nav>
+</div>
+<script>
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.side-tab'));
+  var panels = {
+    overview: 'panel-overview', path: 'panel-path',
+    resources: 'panel-resources', code: 'panel-code'
+  };
+  function activate(name, push) {
+    tabs.forEach(function (t) { t.classList.toggle('active', t.dataset.tab === name); });
+    Object.keys(panels).forEach(function (k) {
+      var el = document.getElementById(panels[k]);
+      if (el) el.classList.toggle('active', k === name);
+    });
+    if (push) history.replaceState(null, '', '#tab=' + name);
+  }
+  function fromHash() {
+    var m = location.hash.match(/^#tab=(\w+)/);
+    if (m && document.getElementById(panels[m[1]])) return m[1];
+    return tabs.length ? tabs[0].dataset.tab : null;
+  }
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () { activate(t.dataset.tab, true); });
+  });
+  window.addEventListener('hashchange', function () {
+    var n = fromHash(); if (n) activate(n, false);
+  });
+  // 外部链接一律新窗口（规格 §3.2 资源 tab）
+  document.querySelectorAll('.panel a[href^="http"]').forEach(function (a) {
+    a.target = '_blank'; a.rel = 'noopener';
+  });
+  // 进度条锚点：先切到学习路径 tab，再平滑滚动（覆盖 hash 路由冲突）
+  document.querySelectorAll('.progress-step').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      activate('path', false);
+      var el = document.getElementById(a.getAttribute('href').slice(1));
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    });
+  });
+  // 代码文件切换
+  var cbtns = document.querySelectorAll('.code-file-btn');
+  var cviews = document.querySelectorAll('.code-viewer');
+  cbtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      cbtns.forEach(function (x) { x.classList.remove('active'); });
+      b.classList.add('active');
+      cviews.forEach(function (v) { v.classList.remove('active'); });
+      var v = document.getElementById(b.dataset.file);
+      if (v) v.classList.add('active');
+    });
+  });
+  if (cbtns.length) cbtns[0].classList.add('active');
+  var init = fromHash();
+  if (init) activate(init, false);
+})();
+</script>
+<!-- {{BUILD_META}} -->
+</body>
+</html>

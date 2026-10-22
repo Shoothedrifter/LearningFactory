@@ -6,6 +6,8 @@ tests/test_html_builder.py
 构建器零 LLM、零网络、输入目录只读；本文件钉住各纯函数行为。
 """
 
+import re
+
 import pytest
 
 from learning_factory.html_builder import (
@@ -18,6 +20,7 @@ from learning_factory.html_builder import (
     collect_artifacts,
     extract_levels,
     highlight_css,
+    load_template,
     render_code_panel,
     render_markdown,
     render_progress,
@@ -189,3 +192,31 @@ def test_render_code_panel_structure():
 def test_render_code_panel_empty_tree():
     """空树 → 空字符串（占位符替换为空）。"""
     assert render_code_panel(CodeTree(files=[])) == ""
+
+
+def test_template_exists_and_holds_placeholders():
+    """模板随包分发且占位符齐全（Task 6 的替换契约）。"""
+    tpl = load_template()
+    for ph in (
+        "{{PAGE_TITLE}}", "{{NAV_HTML}}", "{{PANEL_OVERVIEW}}",
+        "{{PANEL_LEARNING_PATH}}", "{{PANEL_RESOURCES}}", "{{PANEL_CODE}}",
+        "{{PYGMENTS_CSS}}", "{{BUILD_META}}",
+    ):
+        assert ph in tpl
+
+
+def test_template_offline_selfcontained_except_fonts():
+    """自包含契约：唯一外链是 Google Fonts（Review Focus #5）。"""
+    tpl = load_template()
+    refs = re.findall(r'(?:src|href)="(https?://[^"]+)"', tpl)
+    assert refs, "模板应至少包含字体 link"
+    assert all(r.startswith("https://fonts.") for r in refs), refs
+
+
+def test_template_accessibility_and_motion():
+    """reduced-motion 支持 + hash 路由 + 外链新窗口（规格 §3.4/§3.6）。"""
+    tpl = load_template()
+    assert "prefers-reduced-motion" in tpl
+    assert "#tab=" in tpl  # hash 路由
+    # 模板经 JS 设置 target（a.target = '_blank'），断言钉住该行为而非具体空白写法
+    assert re.search(r"""target\s*=\s*['"]_blank['"]""", tpl)

@@ -203,3 +203,12 @@ def render_code_panel(tree: CodeTree) -> str:
         f'<div class="code-layout"><nav class="code-file-nav">{nav}</nav>'
         f'<div class="code-views">{viewers}</div></div>'
     )
+
+
+# 模板随包分发（pyproject package-data 打包，见 Task 8），按包内路径读取
+TEMPLATE_PATH = Path(__file__).parent / "templates" / "learning_page.html"
+
+
+def load_template() -> str:
+    """读取页面骨架模板（cwd 无关）。"""
+    return TEMPLATE_PATH.read_text(encoding="utf-8")
