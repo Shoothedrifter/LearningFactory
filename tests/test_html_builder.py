@@ -315,6 +315,47 @@ def test_template_nojs_fallback_and_motion_gating():
     assert re.search(r"behavior:\s*reduceMotion \? 'auto' : 'smooth'", tpl)
 
 
+def test_template_tree_details_css():
+    """文件树 details/summary 样式：层级缩进 + 动效门控的展开过渡（I5）。"""
+    tpl = load_template()
+    for sel in (".code-dir", ".dir-children", ".dir-arrow", "summary"):
+        assert sel in tpl, sel
+    # 展开过渡（箭头旋转 + 内容淡入位移）只在 no-preference 下启用
+    assert "tree-fade" in tpl  # 内容淡入位移动画的 keyframes
+    base_arrow = re.search(r"\.dir-arrow \{[^}]*\}", tpl).group(0)
+    assert "transition" not in base_arrow  # 基础规则不携带动画
+    gate = re.search(
+        r"@media \(prefers-reduced-motion: no-preference\) \{\n  \.dir-arrow \{[^}]*\}",
+        tpl,
+    )
+    assert gate and "transition" in gate.group(0)
+
+
+def test_template_scrollspy_js_and_css():
+    """scroll spy：IntersectionObserver 高亮视口内 Level + active 视觉态（I5）。"""
+    tpl = load_template()
+    assert "IntersectionObserver" in tpl
+    # 注册前检查：无进度条（无 Level）或浏览器不支持时静默跳过
+    assert "'IntersectionObserver' in window" in tpl
+    # CSS 视觉态：当前步骤高亮（薰衣草加深，与 Notebook Tabs 色板一致）
+    assert ".progress-step.active" in tpl
+
+
+def test_template_js_viewer_exclusive_display():
+    """JS 生效时查看器互斥显示（浏览器实测发现的存量缺陷，I5 自审修复）。
+
+    .code-viewer:first-of-type 恒 display:block：点击非首文件按钮时
+    首文件查看器与目标查看器同屏叠显。first-of-type 兜底只应服务无 JS
+    环境；JS 场景由 .active 独占（启动时已给首按钮加 active，默认首文件
+    语义不变）。
+    """
+    tpl = load_template()
+    assert ".js .code-viewer { display: none" in tpl
+    assert ".js .code-viewer.active { display: block" in tpl
+    # JS 启动时给首按钮对应查看器补 active（否则初始面板空白）
+    assert re.search(r"firstView\.classList\.add\('active'\)", tpl)
+
+
 def _make_tech_dir(tmp_path, *, code=True, resources=True, readme=True, path=True):
     """构造一个技术产物目录 fixture（各产物可独立缺席）。"""
     d = tmp_path / "learning-demo"
