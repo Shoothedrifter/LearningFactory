@@ -4,7 +4,7 @@
 
 > Still lost deciding where to start with a new technology? Still spending entire evenings hunting for tutorials, vetting resources, and piecing together a learning path?
 >
-> Hand all of that to **Learning Factory**: name what you want to learn in one sentence, and it produces a ready-to-start learning pack on your local machine — a five-level learning path, curated references, and runnable code examples.
+> Hand all of that to **Learning Factory**: name what you want to learn in one sentence, and it produces a ready-to-start learning pack on your local machine — a five-level learning path, curated references, and runnable code examples — automatically bundled into a self-contained interactive HTML page you can open with a double-click.
 
 A multi-agent collaborative research system that calls LLM APIs directly through the OpenAI-compatible SDK, with no LangChain / LangGraph or other framework dependencies. It targets Zhipu GLM out of the box (works right after sign-up) and can be switched to any other OpenAI-compatible provider (see [Configuration](#configuration)).
 
@@ -15,7 +15,8 @@ The system consists of one **main agent** (the coordinator) and four **sub-agent
 - **One-sentence request, complete learning pack**: a five-level progressive learning path (overview → installation & first steps → core concepts → practical patterns → advanced guidance)
 - **Three parallel research tracks**: official docs, repository analysis, and community tutorials run concurrently, with cross-validated results
 - **Artifacts written to local disk**: an overview README, a resource roundup, the main learning-path document, and runnable code examples, all written into a local directory
-- **Multi-turn conversation & task continuation**: when files are left unfinished, a single "continue the task" completes them
+- **Self-contained interactive HTML**: each conversation turn automatically bundles the pack into a single HTML file (four tabs: overview / learning path / resources / code examples) that opens offline with a double-click; existing directories can also be built manually via `learning-factory-build`
+- **Multi-turn conversation & task continuation**: when files are left unfinished, a single "continue the task" completes them (the HTML rebuilds every turn, so the final turn's page is always complete)
 
 Example structure of a generated learning pack (a real one — learning-transformer):
 
@@ -24,12 +25,13 @@ Learning-Factory/learning-transformer/
 ├── README.md            # Overview and usage notes
 ├── resources.md         # All reference links (grouped by source)
 ├── learning-path.md     # The five-level learning path (~1,000 lines)
-└── code-examples/
-    ├── 01-hello-world/       # 3 starter examples incl. text_generation.py
-    └── 02-core-concepts/     # 4 core exercises incl. multi_head_attention.py
+├── code-examples/
+│   ├── 01-hello-world/       # 3 starter examples incl. text_generation.py
+│   └── 02-core-concepts/     # 4 core exercises incl. multi_head_attention.py
+└── learning-transformer.html # Self-contained interactive page (auto-built at turn end)
 ```
 
-Nine packs have been generated locally across different topics (transformer / docker / kubernetes / pytorch / ai-agent / vllm, among others). Below are real excerpts from the learning-transformer pack's `learning-path.md` and `resources.md` (translated from the actual Chinese output):
+Ten packs have been generated locally across different topics (transformer / docker / kubernetes / pytorch / ai-agent / vllm, among others). Below are real excerpts from the learning-transformer pack's `learning-path.md` and `resources.md` (translated from the actual Chinese output):
 
 <details>
 <summary>📖 Real excerpt from <code>learning-path.md</code> (click to expand)</summary>
@@ -122,7 +124,7 @@ pip install -r requirements.txt        # run directly (full dependencies)
 pip install -e ".[dev]"                # editable install + dev dependencies
 ```
 
-> Dependency versions are governed by [pyproject.toml](pyproject.toml) (openai / httpx / python-dotenv / mcp / beautifulsoup4).
+> Dependency versions are governed by [pyproject.toml](pyproject.toml) (openai / httpx / python-dotenv / mcp / beautifulsoup4 / markdown / pygments).
 
 ## Configuration
 
@@ -187,6 +189,16 @@ python -m learning_factory.agent
 - `--resume`: resume the last session; or pass a path: `--resume ~/.learning_factory/sessions/<file>.jsonl`
 - `--output-dir <dir>`: root directory for generated artifacts (default `Learning-Factory/`)
 - Progress is streamed live: sub-agent start/finish (`▶`/`✔`/`✖`) and each tool call are printed line by line, with the final answer printed as a whole
+- When a turn wrote to an artifact directory, a line like `[HTML] 已构建 Learning-Factory/learning-xxx/learning-xxx.html` ("built") appears right before the answer (a build failure only prints one reason line and never affects the session)
+
+**Build HTML manually (existing directories / batch):**
+
+```bash
+learning-factory-build Learning-Factory/learning-transformer   # a single directory
+learning-factory-build Learning-Factory/                       # the root directory, building all packs
+```
+
+The generated HTML opens offline with a double-click: four tabs (overview / learning path / resources / code examples), refresh keeps the current tab, the Level progress bar highlights as you scroll, and code examples come with syntax highlighting, line numbers, and a nested file tree; offline, only the Latin fonts degrade — everything else keeps working.
 
 ## Session Persistence (CLI)
 
@@ -204,7 +216,7 @@ Architecture design (agent collaboration / ReAct loop), tool system and assignme
 
 ```bash
 pip install -r requirements-dev.txt
-pytest    # 145 tests, fully mocked, no real API key needed
+pytest    # 212 tests, fully mocked, no real API key needed
 ```
 
 ## Notes

@@ -7,7 +7,8 @@
 ```
 .
 ├── learning_factory/                # 可安装包（代码 + 提示词 + 技能 + 静态资源随包分发）
-│   ├── agent.py                # 主入口：CLI 对话循环 + 主 Agent 定义（普通 + 流式版本）
+│   ├── agent.py                # 主入口：CLI 对话循环 + 主 Agent 定义（普通 + 流式版本）+ 收尾 HTML 自动构建钩子
+│   ├── html_builder.py         # HTML 构建器：四产物聚合为单文件交互页面（纯函数渲染管线 + learning-factory-build CLI）
 │   ├── server.py               # FastAPI Web 服务（SSE 流式推送 + 会话管理）
 │   │
 │   ├── agents/
@@ -34,14 +35,17 @@
 │   ├── static/
 │   │   └── index.html          # Web 聊天前端（SSE 消费 + Markdown 渲染 + 过程可视化）
 │   │
+│   ├── templates/
+│   │   └── learning_page.html  # 产物页面模板（Notebook Tabs 风格，内联 CSS/JS + 8 个占位符，随包分发）
+│   │
 │   └── skills/
 │       └── learning-a-tool/    # Skill 定义：编程工具学习路径生成
 │           ├── SKILL.md        #   工作流定义（研究 → 结构 → 输出）
 │           └── references/
 │               └── progressive-learning.md  # 渐进式学习框架（5 个层级）
 │
-├── tests/                      # pytest 测试（145 项，全 mock 无需真实 API Key）
-├── pyproject.toml              # 打包与依赖真相（入口点 learning-factory、requires-python>=3.11）
+├── tests/                      # pytest 测试（212 项，全 mock 无需真实 API Key）
+├── pyproject.toml              # 打包与依赖真相（入口点 learning-factory / learning-factory-build、requires-python>=3.11）
 ├── requirements.txt            # git clone 直跑场景的依赖清单（版本以 pyproject.toml 为准）
 └── .env                        # 环境变量（API 密钥，从 .env.example 复制）
 ```
@@ -159,11 +163,22 @@ Learning-Factory/learning-{tool-name}/
 ├── README.md           # 概览和使用说明
 ├── resources.md        # 所有链接（按来源分类）
 ├── learning-path.md    # 五级学习路径主体内容
-└── code-examples/
-    ├── 01-hello-world/
-    ├── 02-core-concepts/
-    └── 03-patterns/
+├── code-examples/
+│   ├── 01-hello-world/
+│   ├── 02-core-concepts/
+│   └── 03-patterns/
+└── learning-{tool-name}.html  # 单文件交互页面（对话轮结束自动构建）
 ```
+
+## HTML 构建器（html_builder）
+
+把学习包的四类产物聚合为一个自包含交互页面的**确定性渲染管线**——零 LLM 调用、零运行时网络依赖（产物 HTML 仅 Google Fonts 一个可选外链）：
+
+- **管线**（`html_builder.py` 纯函数，输入目录只读）：`collect_artifacts`（四产物收集与缺件标记）→ `render_markdown`（markdown + codehilite）→ `extract_levels` + `render_progress`（Level 进度条数据）→ `build_code_tree` + `render_code_panel`（扩展名语言检测 + Pygments 生成期高亮 + `<details>` 嵌套文件树）→ `build_html`（模板 8 占位符单 pass 替换，规避用户内容与占位符碰撞）
+- **模板**（`templates/learning_page.html`）：Notebook Tabs 风格——四 tab 右缘竖排彩色标签、hash 路由（刷新保持当前 tab）、学习路径 scroll spy 滚动高亮、`prefers-reduced-motion` 全量门控、字号间距 clamp 全覆盖
+- **宽容降级**：缺任一产物 → 对应 tab 隐藏 + stderr 警告，构建继续；四类全缺 → 报错退出；非 UTF-8 / dotfile 外的读取失败 → 报错并指明路径；批量模式单目录失败继续其余、退出码取最差
+- **CLI**：`learning-factory-build <技术目录>` 单建（`--output` 覆盖输出路径）；传根目录批量构建全部含产物子目录
+- **自动构建（收尾钩子，二期）**：`agent.py` 的 `_auto_html_build_events` 挂在 `run_main_agent_stream` 两条结束路径（自然最终答案 + 兜底总结）——以本轮对话起点为基准，扫描输出根目录下 mtime 更新的技术目录（`_is_tech_dir` 判定）逐个构建，结果以 `html_build` 事件透出；任何异常降级为一行失败提示，绝不影响会话本体；纯聊天/纯研究轮零命中零噪音。多轮"继续补写"场景每轮自动重建，最终轮页面必然完整
 
 ## 两种运行模式
 
@@ -189,6 +204,7 @@ CLI 模式同样走流式版本（`main()` 调用 `run_main_agent_stream`），�
 | subagent done（ok=false） | `✖ [子Agent名] 失败` |
 | tool_call | `· 工具名(...)` |
 | 429 重试 | `→ [重试] 子Agent名 撞到速率限制，N 秒后重试...`（N 为指数退避序列值） |
+| html_build | `[HTML] 已构建 <路径>` / `[HTML] 构建失败: <原因>`（收尾钩子，见 [HTML 构建器](#html-构建器html_builder)） |
 | answer | 整段输出 |
 
 ## Web 模式协议
@@ -204,6 +220,7 @@ Web 模式下，`POST /chat` 端点以 `text/event-stream` 推送以下事件：
 | `status` | `agent`, `message` | 状态更新（开始处理、轮次信息） |
 | `tool_call` | `agent`, `tool`, `args`, `result`, `status` | 工具调用详情 |
 | `subagent` | `subagent`, `status`, `task`, `ok` | 子 Agent 开始/完成（`ok` 为 done 时的成败标记，缺省为成功） |
+| `html_build` | `status`, `path`, `message` | 产物目录自动 HTML 构建结果（`built`/`failed`，失败时 `message` 含原因；在 `answer` 之前推送） |
 | `answer` | `agent`, `content` | 最终答案 |
 | `error` | `message` | 错误信息 |
 
@@ -277,10 +294,12 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-测试覆盖（145 项）：同轮多工具并行执行与消息协议完整性（tool_call_id 顺序回填、单工具失败隔离）、
+测试覆盖（212 项）：同轮多工具并行执行与消息协议完整性（tool_call_id 顺序回填、单工具失败隔离）、
 分块写入硬限制（1500 字符）与覆盖防线、同轮同文件写/dispatch 双防线（路径两级启发式提取）、
 dispatch 429 退避重试与并发节流（信号量）、Skill 渐进披露三层加载、模型配置钉住、
-供应商中立钉住（`test_no_glm_names.py`）与 MCP Key 回落（`test_mcp_key_fallback.py`）等。
+供应商中立钉住（`test_no_glm_names.py`）与 MCP Key 回落（`test_mcp_key_fallback.py`）、
+HTML 构建管线（产物收集/markdown 渲染/进度条/代码树/模板组装/宽容降级/CLI 退出码）与
+收尾自动构建钩子（命中构建/零噪音/失败不炸会话/事件次序）等。
 
 ## 注意事项
 

@@ -4,7 +4,7 @@
 
 > 还在为学习一项新技术不知从何下手吗？还在为四处搜集教程、甄别资源质量、拼凑学习路径而耗掉整晚吗？
 >
-> 把这些交给**学习工厂**：一句话说出你想学的东西，它会在本地生成一份拿来就能开始的学习包——五级学习路径、参考资源与可运行的代码示例。
+> 把这些交给**学习工厂**：一句话说出你想学的东西，它会在本地生成一份拿来就能开始的学习包——五级学习路径、参考资源与可运行的代码示例，并自动聚合成一个双击即看的交互式 HTML 页面。
 
 多智能体协作研究系统，直接通过 OpenAI 兼容 SDK 调用大模型 API，无需 LangChain / LangGraph 等框架依赖。默认对接智谱 GLM（注册即用），也可切换到其他 OpenAI 兼容供应商（见[配置](#配置)）。
 
@@ -15,7 +15,8 @@
 - **一句话请求，生成完整学习包**：五级渐进式学习路径（概述 → 安装上手 → 核心概念 → 实战模式 → 进阶指引）
 - **三路并行研究**：官方文档、仓库分析、社区教程同时进行，结果交叉印证
 - **产物落盘本地**：导览 README、资源汇总、学习路径主文档、可运行的代码示例，全部写入本地目录
-- **多轮对话与任务续作**：中途有文件未完成时，一句「继续完成任务」即可补齐
+- **单文件交互式 HTML**：每轮对话结束自动把学习包聚合成一个自包含 HTML（四 tab 浏览：概览 / 学习路径 / 资源 / 代码示例），双击离线可看；存量目录也可用 `learning-factory-build` 手动构建
+- **多轮对话与任务续作**：中途有文件未完成时，一句「继续完成任务」即可补齐（HTML 随每轮自动重建，最终轮必然完整）
 
 生成的学习包结构示例（以真实产物 learning-transformer 为例）：
 
@@ -24,12 +25,13 @@ Learning-Factory/learning-transformer/
 ├── README.md            # 概览和使用说明
 ├── resources.md         # 全部参考链接（按来源分类）
 ├── learning-path.md     # 五级学习路径主体内容（约 1000 行）
-└── code-examples/
-    ├── 01-hello-world/       # text_generation.py 等 3 个入门示例
-    └── 02-core-concepts/     # multi_head_attention.py 等 4 个核心练习
+├── code-examples/
+│   ├── 01-hello-world/       # text_generation.py 等 3 个入门示例
+│   └── 02-core-concepts/     # multi_head_attention.py 等 4 个核心练习
+└── learning-transformer.html # 单文件交互式页面（对话结束自动生成）
 ```
 
-本地已实测生成 9 个不同主题的学习包（transformer / docker / kubernetes / pytorch / ai-agent / vllm 等）。以下为 learning-transformer 包中 `learning-path.md` 与 `resources.md` 的真实片段（节选）：
+本地已实测生成 10 个不同主题的学习包（transformer / docker / kubernetes / pytorch / ai-agent / vllm 等）。以下为 learning-transformer 包中 `learning-path.md` 与 `resources.md` 的真实片段（节选）：
 
 <details>
 <summary>📚 <code>learning-path.md</code> 真实片段（点击展开）</summary>
@@ -122,7 +124,7 @@ pip install -r requirements.txt        # 直跑（完整依赖）
 pip install -e ".[dev]"                # 可编辑安装 + 开发依赖
 ```
 
-> 依赖版本以 [pyproject.toml](pyproject.toml) 为准（openai / httpx / python-dotenv / mcp / beautifulsoup4）。
+> 依赖版本以 [pyproject.toml](pyproject.toml) 为准（openai / httpx / python-dotenv / mcp / beautifulsoup4 / markdown / pygments）。
 
 ## ⚙️ 配置
 
@@ -187,6 +189,16 @@ python -m learning_factory.agent
 - `--resume`：恢复上次会话；指定路径 `--resume ~/.learning_factory/sessions/<文件>.jsonl`
 - `--output-dir <目录>`：产物输出根目录（默认 `Learning-Factory/`）
 - 过程实时可见：子 Agent 启动/完成（`▶`/`✔`/`✖`）与工具调用逐行打印，最终答案整段输出
+- 本轮写过产物目录时，答案前自动出一行 `[HTML] 已构建 Learning-Factory/learning-xxx/learning-xxx.html`（构建失败只提示一行原因，不影响会话）
+
+**手动构建 HTML（存量目录 / 批量出页面）：**
+
+```bash
+learning-factory-build Learning-Factory/learning-transformer   # 单个目录
+learning-factory-build Learning-Factory/                       # 根目录批量构建全部
+```
+
+产出的 HTML 双击即可离线打开：四 tab 切换（概览 / 学习路径 / 资源 / 代码示例）、刷新停留在当前 tab、学习路径顶部 Level 进度条随滚动高亮、代码示例带语法高亮与行号的嵌套文件树；断网时仅西文字体降级，其余全部正常。
 
 ## 📀 会话持久化（CLI）
 
@@ -204,7 +216,7 @@ CLI 模式的对话历史逐轮落盘到家目录 `~/.learning_factory/sessions/
 
 ```bash
 pip install -r requirements-dev.txt
-pytest    # 145 项，全 mock 无需真实 API Key
+pytest    # 212 项，全 mock 无需真实 API Key
 ```
 
 ## 注意事项
