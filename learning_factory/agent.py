@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sys
+import time
 import weakref
 from pathlib import Path
 from typing import AsyncGenerator
@@ -532,6 +533,46 @@ def _sse(event_type: str, **kwargs) -> str:
     return json.dumps({"type": event_type, **kwargs}, ensure_ascii=False)
 
 
+def _auto_html_build_events(since: float):
+    """
+    收尾钩子（二期）：把本轮被写过的技术目录自动聚合为单文件 HTML。
+
+    - 扫描 get_output_root_dir() 下、任一文件 mtime 晚于 since 的技术目录
+      （_is_tech_dir 判定），逐个调 html_builder.build_html；
+    - 结果以 html_build 事件透出（CLI 渲染一行）；单目录构建失败只降级为
+      一条 failed 事件并继续其余目录；钩子自身任何意外同样只出一条事件，
+      绝不影响会话本体；
+    - 纯聊天/纯研究轮零命中 → 零事件零噪音；markdown/pygments 延迟到
+      此处才导入，不拖慢 agent 启动。
+    """
+    try:
+        # 延迟导入：钩子命中概率不定，避免启动期背上渲染依赖
+        from .html_builder import HtmlBuildError, build_html, _is_tech_dir
+
+        root = Path(get_output_root_dir())
+        if not root.is_dir():
+            return
+        for tech in sorted(root.iterdir()):
+            if not (tech.is_dir() and _is_tech_dir(tech)):
+                continue
+            # 任一文件被写过（mtime 晚于本轮起点）即视为本轮产物目录；
+            # 生成的 HTML 属上一轮产物，不会误命中（本轮构建在扫描之后）
+            touched = any(
+                p.is_file() and p.stat().st_mtime > since
+                for p in tech.rglob("*")
+            )
+            if not touched:
+                continue
+            try:
+                out = build_html(tech)
+            except HtmlBuildError as e:
+                yield _sse("html_build", status="failed", path=str(tech), message=str(e))
+                continue
+            yield _sse("html_build", status="built", path=str(out))
+    except Exception as e:  # 钩子整体兜底：扫描/导入等任何意外不影响会话
+        yield _sse("html_build", status="failed", path=get_output_root_dir(), message=str(e))
+
+
 async def run_main_agent_stream(
     system_prompt: str,
     messages: list,
@@ -560,6 +601,8 @@ async def run_main_agent_stream(
     )
 
     local_messages = list(messages)
+    # 二期收尾钩子基准：本轮对话开始时刻（钩子据此识别"本轮被写过"的目录）
+    turn_start = time.time()
 
     yield _sse("status", agent="main", message="开始处理...")
 
@@ -726,6 +769,10 @@ async def run_main_agent_stream(
         else:
             final_answer = msg.content or ""
             yield _sse("status", agent="main", message=f"完成（共 {round_num} 轮）")
+            # 二期收尾钩子：本轮被写过的产物目录自动出 HTML（在 answer 事件
+            # 之前——answer 由 main() 流结束后整段打印，钩子行与过程行同屏）
+            for _ev in _auto_html_build_events(turn_start):
+                yield _ev
             yield _sse("answer", agent="main", content=final_answer)
             return
 
@@ -740,6 +787,9 @@ async def run_main_agent_stream(
         tool_choice=None,
     )
     summary = summary_response.choices[0].message.content or "[达到最大调用轮次]"
+    # 兜底总结路径同样过收尾钩子（轮次耗尽时产物可能已大部分落盘）
+    for _ev in _auto_html_build_events(turn_start):
+        yield _ev
     yield _sse("answer", agent="main", content=summary)
 
 
@@ -793,6 +843,11 @@ def render_event(event: dict):
         return None
     if etype == "tool_call":
         return f"  · {event.get('tool', '?')}(...)"
+    if etype == "html_build":
+        # 二期收尾钩子：成功一行报路径；失败一行报原因（会话本体不受影响）
+        if event.get("status") == "built":
+            return f"[HTML] 已构建 {event.get('path')}"
+        return f"[HTML] 构建失败: {event.get('message', '')}"
     if etype == "error":
         return f"  [错误] {event.get('message', '')}"
     return None
