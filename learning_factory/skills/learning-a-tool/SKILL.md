@@ -48,13 +48,13 @@ Gather information from three sources. Research each source independently, then 
 
 Organize content into progressive levels. `references/progressive-learning.md` is the source of truth.
 
-You MUST create exactly 5 levels in this order:
+You MUST create exactly 5 levels in this order (Chinese titles as listed):
 
-1. Level 1: Overview & Motivation
-2. Level 2: Installation & Hello World
-3. Level 3: Core Concepts
-4. Level 4: Practical Patterns
-5. Level 5: Next Steps
+1. Level 1: 概览与动机
+2. Level 2: 安装与 Hello World
+3. Level 3: 核心概念
+4. Level 4: 实战模式
+5. Level 5: 进阶方向
 
 Do NOT merge, skip, or rename levels. Each level's content requirements are defined in the reference file.
 
@@ -78,3 +78,5 @@ Learning-Factory/learning-{tool-name}/
 ```
 
 **Writing files (IMPORTANT)**: You have NO file-writing tools. For each output file, dispatch `file_writer` with the file's full relative path plus its content requirements (level structure and key material from your research). Dispatches for different files can go in the same round. Verify with `read_file` / `list_directory` afterwards.
+
+**Language (MANDATORY)**: All generated documents (README.md, resources.md, learning-path.md, and comments in code examples) MUST be written in Simplified Chinese — including the five level headings listed above — regardless of the language of the research material. Keep code, commands, configuration keys, proper nouns, and URLs in their original language. State this language requirement explicitly in every `file_writer` dispatch.

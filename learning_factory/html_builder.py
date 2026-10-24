@@ -11,6 +11,7 @@ resources.md / code-examples/）聚合为一个 Notebook Tabs 风格的自包含
 import argparse
 import html as _html
 import re
+import shutil
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -440,6 +441,24 @@ def _is_tech_dir(path: Path) -> bool:
     return any(name in _STRONG_ARTIFACTS for name in present) or len(present) >= 2
 
 
+def _prune_tech_dir(d: Path) -> list[str]:
+    """删除目录内四类源产物（HTML 已另行构建），返回被删项名列表供打印。
+
+    只删四类产物本身；目录里其他文件（用户手放笔记等）一律不碰。
+    """
+    removed = []
+    for name in ("README.md", "learning-path.md", "resources.md"):
+        p = d / name
+        if p.is_file():
+            p.unlink()
+            removed.append(name)
+    code = d / "code-examples"
+    if code.is_dir():
+        shutil.rmtree(code)
+        removed.append("code-examples/")
+    return removed
+
+
 def main(argv: list[str] | None = None) -> int:
     """learning-factory-build 入口：0 成功 / 1 失败 / 2 用法错误。"""
     parser = argparse.ArgumentParser(
@@ -453,12 +472,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--output", default=None, help="输出 HTML 路径（仅单目录模式有效）",
     )
+    parser.add_argument(
+        "--prune", action="store_true",
+        help="构建成功后删除源产物（md 与 code-examples），目录只留 HTML（不可逆）",
+    )
+    parser.add_argument(
+        "--yes", action="store_true", help="--prune 跳过确认（脚本场景）",
+    )
     args = parser.parse_args(argv)
 
     target = Path(args.target)
     if not target.is_dir():
         print(f"错误：目标不是目录：{target}", file=sys.stderr)
         return 1
+
+    if args.prune:
+        return _run_prune(parser, target, args)
 
     if _is_tech_dir(target):
         try:
@@ -488,6 +517,53 @@ def main(argv: list[str] | None = None) -> int:
             print(f"警告：跳过 {d.name}：{exc}", file=sys.stderr)
     # 批量简报汇总行（规格 §4.3：简报须含结果概况）
     print(f"批量构建完成：成功 {len(tech_dirs) - failed} / 失败 {failed}")
+    return 1 if failed else 0
+
+
+def _run_prune(parser: argparse.ArgumentParser, target: Path, args: argparse.Namespace) -> int:
+    """--prune 路径：逐目录「先重建 HTML、成功才删源产物」，失败目录源文件保留。"""
+    if args.output:
+        parser.error("--prune 与 --output 互斥")  # SystemExit(2)
+
+    if _is_tech_dir(target):
+        dirs = [target]
+    else:
+        dirs = sorted(
+            d for d in target.iterdir() if d.is_dir() and _is_tech_dir(d)
+        )
+        if not dirs:
+            print(f"错误：{target} 下无可清理的技术目录", file=sys.stderr)
+            return 1
+
+    if not args.yes:
+        print("将清理以下目录的源产物（只保留 HTML，不可逆）：")
+        for d in dirs:
+            print(f"  {d}")
+        try:
+            answer = input("确认清理？[y/N] ")
+        except EOFError:
+            answer = ""  # 非交互（管道/脚本）无输入 → 视为拒绝
+        if answer.strip().lower() != "y":
+            print("已取消，未做任何修改。")
+            return 1
+
+    failed = 0
+    for d in dirs:
+        try:
+            out = build_html(d)  # 先重建：删源前保证 HTML 含最新内容
+        except HtmlBuildError as exc:
+            failed += 1
+            print(f"警告：{d.name} 构建失败，源文件已保留：{exc}", file=sys.stderr)
+            continue
+        try:
+            removed = _prune_tech_dir(d)
+        except OSError as exc:
+            failed += 1
+            print(f"警告：{d.name} 清理失败：{exc}", file=sys.stderr)
+            continue
+        print(f"已构建 {out}")
+        print(f"已清理源产物：{'、'.join(removed)}（目录只留 HTML）")
+    print(f"批量清理完成：成功 {len(dirs) - failed} / 失败 {failed}")
     return 1 if failed else 0
 
 

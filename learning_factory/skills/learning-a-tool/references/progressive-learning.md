@@ -4,7 +4,7 @@ Structure for teaching tools in digestible levels.
 
 ## The Five Levels
 
-### Level 1: Overview & Motivation
+### Level 1: 概览与动机
 
 **Goal**: Understand WHAT and WHY
 
@@ -15,7 +15,7 @@ Cover:
 - Who uses it? For what?
 - When should you NOT use it?
 
-### Level 2: Installation & Hello World
+### Level 2: 安装与 Hello World
 
 **Goal**: Get it running locally
 
@@ -27,7 +27,7 @@ Cover:
 - Run it, see output
 - Verify it works
 
-### Level 3: Core Concepts
+### Level 3: 核心概念
 
 **Goal**: Understand the mental model
 
@@ -38,7 +38,7 @@ Cover:
 - One example per concept
 - Common mistakes for each
 
-### Level 4: Practical Patterns
+### Level 4: 实战模式
 
 **Goal**: Build something real
 
@@ -48,7 +48,7 @@ Cover:
   - then show how to connect tools
   - then show how to create a workflow with subagents  
 
-### Level 5: Next Steps
+### Level 5: 进阶方向
 
 **Goal**: Know where to go deeper
 

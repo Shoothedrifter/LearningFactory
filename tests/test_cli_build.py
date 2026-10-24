@@ -128,3 +128,112 @@ def test_cli_root_readme_does_not_hijack_batch(tmp_path, capsys):
     assert main([str(factory)]) == 0
     assert (factory / "learning-a" / "learning-a.html").exists()
     assert not (factory / "Factory.html").exists()
+
+
+# ── --prune：构建后清理源产物，目录只留 HTML ──────────────────────────────
+
+def _full_tech_dir(parent, name="learning-demo", bad=False):
+    """四类产物齐全的技术目录（bad=True 时 README 非 UTF-8 制造构建失败）。"""
+    d = _make_tech_dir(parent, name=name, bad=bad)
+    if not bad:
+        (d / "resources.md").write_text(
+            "| 资源 | 链接 |\n|------|------|\n| 官方 | https://example.com |",
+            encoding="utf-8",
+        )
+        (d / "code-examples" / "01").mkdir(parents=True)
+        (d / "code-examples" / "01" / "a.py").write_text("print(1)\n", encoding="utf-8")
+    return d
+
+
+def test_cli_prune_single_dir(tmp_path, capsys):
+    """单目录 prune：先构建再删四类源产物，目录只剩 HTML；无关文件不碰。"""
+    d = _full_tech_dir(tmp_path)
+    (d / "notes.txt").write_text("手写笔记", encoding="utf-8")
+    assert main([str(d), "--prune", "--yes"]) == 0
+    assert (d / "learning-demo.html").exists()
+    assert not (d / "README.md").exists()
+    assert not (d / "learning-path.md").exists()
+    assert not (d / "resources.md").exists()
+    assert not (d / "code-examples").exists()
+    assert (d / "notes.txt").exists()  # 无关文件保留
+    out = capsys.readouterr().out
+    assert "已构建" in out and "已清理" in out
+
+
+def test_cli_prune_rebuilds_before_deleting(tmp_path):
+    """删源前先重建：构建后修改的 md 内容必须进 HTML（删旧页 = 内容丢失）。"""
+    d = _full_tech_dir(tmp_path)
+    main([str(d)])  # 先构建一版旧 HTML
+    (d / "resources.md").write_text(
+        "| 资源 | 链接 |\n|------|------|\n| 新增 | https://new.example.com/x |",
+        encoding="utf-8",
+    )
+    assert main([str(d), "--prune", "--yes"]) == 0
+    html = (d / "learning-demo.html").read_text(encoding="utf-8")
+    assert "new.example.com" in html  # HTML 是重建后的最新内容
+
+
+def test_cli_prune_build_failure_keeps_sources(tmp_path, capsys):
+    """构建失败的目录不删源文件（安全失败），返回 1。"""
+    d = _make_tech_dir(tmp_path, bad=True)
+    assert main([str(d), "--prune", "--yes"]) == 1
+    assert (d / "learning-path.md").exists()  # 源文件原样保留
+    assert not (d / "learning-demo.html").exists()
+    assert "源文件已保留" in capsys.readouterr().err
+
+
+def test_cli_prune_batch(tmp_path, capsys):
+    """批量 prune：好目录清理、坏目录保留并继续，汇总行报成功/失败数。"""
+    factory = tmp_path / "Factory"
+    factory.mkdir()
+    _full_tech_dir(factory, name="learning-a")
+    _make_tech_dir(factory, name="learning-bad", bad=True)
+    assert main([str(factory), "--prune", "--yes"]) == 1
+    assert not (factory / "learning-a" / "README.md").exists()
+    assert (factory / "learning-bad" / "learning-path.md").exists()
+    assert "批量清理完成：成功 1 / 失败 1" in capsys.readouterr().out
+
+
+def test_cli_prune_confirmation_declined(tmp_path, monkeypatch, capsys):
+    """默认需确认：回答非 y 取消，源文件不动，返回 1。"""
+    d = _full_tech_dir(tmp_path)
+    monkeypatch.setattr("builtins.input", lambda _: "n")
+    assert main([str(d), "--prune"]) == 1
+    assert (d / "README.md").exists()
+    assert "已取消" in capsys.readouterr().out
+
+
+def test_cli_prune_confirmation_accepted(tmp_path, monkeypatch):
+    """回答 y 确认执行清理。"""
+    d = _full_tech_dir(tmp_path)
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+    assert main([str(d), "--prune"]) == 0
+    assert not (d / "README.md").exists()
+
+
+def test_cli_prune_yes_skips_prompt(tmp_path, monkeypatch):
+    """--yes 不询问（input 被调用即失败）。"""
+    def _no_prompt(_):
+        raise AssertionError("不应出现确认询问")
+    monkeypatch.setattr("builtins.input", _no_prompt)
+    d = _full_tech_dir(tmp_path)
+    assert main([str(d), "--prune", "--yes"]) == 0
+    assert not (d / "README.md").exists()
+
+
+def test_cli_prune_output_mutex(tmp_path):
+    """--prune 与 --output 互斥：用法错误退出 2。"""
+    d = _full_tech_dir(tmp_path)
+    with pytest.raises(SystemExit) as exc:
+        main([str(d), "--prune", "--output", str(tmp_path / "x.html")])
+    assert exc.value.code == 2
+
+
+def test_cli_pruned_dir_exits_build_scope(tmp_path, capsys):
+    """prune 后目录不再是技术目录：批量构建跳过它（终态目录退出构建范围）。"""
+    factory = tmp_path / "Factory"
+    factory.mkdir()
+    d = _full_tech_dir(factory, name="learning-a")
+    assert main([str(d), "--prune", "--yes"]) == 0
+    assert main([str(factory)]) == 1  # 唯一目录已 prune → 无可构建
+    assert "无可构建" in capsys.readouterr().err
