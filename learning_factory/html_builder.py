@@ -89,10 +89,57 @@ def collect_artifacts(directory: Path) -> Artifacts:
 _MD_EXTENSIONS = ["tables", "fenced_code", "toc", "codehilite"]
 _MD_CONFIG = {"codehilite": {"css_class": "highlight", "guess_lang": False}}
 
+# 裸 URL 自动链接：python-markdown 无 linkify 能力，预处理把裸 URL 包成
+# 角括号语法 <URL>（markdown 原生转 <a href>），零新依赖。
+# URL 体：排除空白、定界符（<>"'`|{}[]，markdown/模板语法字符）与全角标点
+# （合法 URL 不含全角标点，句读直接终止匹配）。
+_URL_RE = re.compile(
+    r"""(?<!["'<(\]])https?://[^\s<>"'`|{}\[\]。，、；：！？“”‘’（）【】《》〈〉「」』]+"""
+)
+# 匹配后从尾部剥离的 ASCII 标点（句读紧跟 URL 时不进 href）
+_URL_TRAILING = ".,;:!?_~*"
+
+
+def _trim_url(url: str) -> str:
+    """剥离 URL 尾部误吞的标点；孤立右括号按括号平衡回退。"""
+    while url:
+        if url[-1] in _URL_TRAILING:
+            url = url[:-1]
+        elif url[-1] == ")" and url.count("(") < url.count(")"):
+            url = url[:-1]
+        else:
+            break
+    return url
+
+
+def _autolink(text: str) -> str:
+    """markdown 源文本里的裸 URL 包成 <URL> 角括号自动链接语法。
+
+    跳过：围栏代码块（``` / ~~~）、行内代码（反引号切分保护奇数段）、
+    已是 markdown 链接 / 角括号 / HTML 属性的 URL（起点定界符 lookbehind 排除）。
+    """
+    out_lines = []
+    in_fence = False
+    for line in text.split("\n"):
+        stripped = line.lstrip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_fence = not in_fence
+            out_lines.append(line)
+            continue
+        if in_fence:
+            out_lines.append(line)
+            continue
+        # 反引号切分：奇数段为行内代码，保持原样
+        parts = line.split("`")
+        for i in range(0, len(parts), 2):
+            parts[i] = _URL_RE.sub(lambda m: f"<{_trim_url(m.group(0))}>", parts[i])
+        out_lines.append("`".join(parts))
+    return "\n".join(out_lines)
+
 
 def render_markdown(text: str) -> str:
-    """markdown 文本 → HTML 片段。"""
-    return markdown.markdown(text, extensions=_MD_EXTENSIONS, extension_configs=_MD_CONFIG)
+    """markdown 文本 → HTML 片段（裸 URL 先经 _autolink 变可点击链接）。"""
+    return markdown.markdown(_autolink(text), extensions=_MD_EXTENSIONS, extension_configs=_MD_CONFIG)
 
 
 def highlight_css() -> str:

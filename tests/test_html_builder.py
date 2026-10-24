@@ -91,6 +91,47 @@ def test_render_markdown_h2_gets_anchor_id():
     assert '<h2 id="level-1">' in html
 
 
+def test_render_markdown_autolinks_bare_url():
+    """裸 URL 自动链接：列表项冒号后的 URL 变可点击 <a>（resources.md 主形态）。"""
+    html = render_markdown("- **官方文档**: https://example.com/docs/index")
+    assert '<a href="https://example.com/docs/index">' in html
+
+
+def test_render_markdown_autolinks_url_in_table_cell():
+    """表格单元格内的裸 URL 同样可点击（表格形态的 resources.md）。"""
+    md = "| 资源 | 链接 |\n|------|------|\n| 官方 | https://example.com |"
+    assert '<a href="https://example.com">' in render_markdown(md)
+
+
+def test_render_markdown_autolink_skips_inline_and_fenced_code():
+    """行内代码与围栏代码块内的 URL 保持纯文本（代码不链接化）。"""
+    inline = render_markdown("安装 `pip install https://example.com/x` 见上")
+    assert "<a href" not in inline
+    fenced = render_markdown("```bash\npip install https://example.com/x\n```")
+    assert "<a href" not in fenced
+
+
+def test_render_markdown_autolink_leaves_markdown_links_alone():
+    """已是 [text](url) 的链接不双重处理：该 href 只渲染一个 <a>，裸 URL 照常链接。"""
+    html = render_markdown("[文档](https://example.com/docs) 与裸 https://example.com")
+    assert html.count('href="https://example.com/docs"') == 1
+    assert '<a href="https://example.com">' in html
+
+
+def test_render_markdown_autolink_trims_trailing_punctuation():
+    """URL 尾随中英文标点不进 href：句号、句点、逗号在链接边界剥掉。"""
+    html = render_markdown("详见 https://example.com/page。以及 https://example.com/a,")
+    assert '<a href="https://example.com/page">' in html
+    assert '<a href="https://example.com/a">' in html
+
+
+def test_render_markdown_autolink_trims_unbalanced_paren():
+    """括号文本内的裸 URL：ASCII 孤立尾 ) 剥离（括号平衡），全角 ）直接终止。"""
+    html = render_markdown("参见 (见 https://example.com/a) 与（https://example.com/b）")
+    assert '<a href="https://example.com/a">' in html
+    assert '<a href="https://example.com/b">' in html
+
+
 def test_highlight_css():
     """高亮主题 CSS 以 .highlight 为前缀，可整体注入模板。"""
     css = highlight_css()
@@ -426,9 +467,17 @@ def test_build_html_non_utf8_markdown_raises_with_path(tmp_path):
 
 
 def test_build_html_offline_no_external_refs_except_fonts(tmp_path):
-    """离线契约：除 Google Fonts 外无任何外部引用（Review Focus #5）。"""
+    """离线契约：除 Google Fonts 外无任何外部资源引用（Review Focus #5）。
+
+    只约束会加载资源的标签（link/script/img 等）；正文 <a href> 是跳转
+    链接（裸 URL 自动链接产生），不触发网络加载，不在契约内。
+    """
     html = build_html(_make_tech_dir(tmp_path)).read_text(encoding="utf-8")
-    refs = re.findall(r'(?:src|href)="(https?://[^"]+)"', html)
+    refs = [
+        url
+        for tag, url in re.findall(r'<(\w+)[^>]*?(?:src|href)="(https?://[^"]+)"', html)
+        if tag != "a"
+    ]
     assert all(r.startswith("https://fonts.") for r in refs), refs
 
 
