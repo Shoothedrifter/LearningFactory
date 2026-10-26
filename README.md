@@ -12,91 +12,33 @@
 
 ## 📒 它能做什么
 
-- **一句话请求，生成完整学习包**：五级渐进式学习路径（概述 → 安装上手 → 核心概念 → 实战模式 → 进阶指引）
+- **一句话请求，生成完整中文学习包**：五级渐进式学习路径（概述 → 安装上手 → 核心概念 → 实战模式 → 进阶指引），文档一律简体中文（代码、命令与专有名词保留原文）
 - **三路并行研究**：官方文档、仓库分析、社区教程同时进行，结果交叉印证
 - **产物落盘本地**：导览 README、资源汇总、学习路径主文档、可运行的代码示例，全部写入本地目录
-- **单文件交互式 HTML**：每轮对话结束自动把学习包聚合成一个自包含 HTML（四 tab 浏览：概览 / 学习路径 / 资源 / 代码示例），双击离线可看；存量目录也可用 `learning-factory-build` 手动构建
+- **单文件交互式 HTML**：每轮对话结束自动把学习包聚合成一个自包含 HTML（四 tab 浏览：概览 / 学习路径 / 资源 / 代码示例，资源链接全部可点击），双击离线可看；存量目录也可用 `learning-factory-build` 手动构建
 - **多轮对话与任务续作**：中途有文件未完成时，一句「继续完成任务」即可补齐（HTML 随每轮自动重建，最终轮必然完整）
 
-生成的学习包结构示例（以真实产物 learning-transformer 为例）：
+生成的学习包结构示例（以真实产物 learning-kubernetes 为例）：
 
 ```
-Learning-Factory/learning-transformer/
+Learning-Factory/learning-kubernetes/
 ├── README.md            # 概览和使用说明
 ├── resources.md         # 全部参考链接（按来源分类）
-├── learning-path.md     # 五级学习路径主体内容（约 1000 行）
+├── learning-path.md     # 五级学习路径主体内容（约 770 行）
 ├── code-examples/
-│   ├── 01-hello-world/       # text_generation.py 等 3 个入门示例
-│   └── 02-core-concepts/     # multi_head_attention.py 等 4 个核心练习
-└── learning-transformer.html # 单文件交互式页面（对话结束自动生成）
+│   ├── 01-hello-world/       # nginx-pod.yaml 入门示例
+│   ├── 02-core-concepts/     # deployment / service / configmap-secret 3 个核心练习
+│   └── 03-patterns/          # cronjob / ingress / stateful-app 等 4 个实践模式
+└── learning-kubernetes.html  # 单文件交互式页面（对话结束自动生成）
 ```
 
-本地已实测生成 10 个不同主题的学习包（transformer / docker / kubernetes / pytorch / ai-agent / vllm 等）。以下为 learning-transformer 包中 `learning-path.md` 与 `resources.md` 的真实片段（节选）：
+本地已实测生成 10 个不同主题的学习包（transformer / docker / kubernetes / pytorch / ai-agent / vllm 等）。以 learning-kubernetes 包为例，点击下面链接即可打开它自动聚合出的单文件交互式页面——四 tab 浏览（概览 / 学习路径 / 资源 / 代码示例）、资源链接可点击、离线可用：
 
-<details>
-<summary>📚 <code>learning-path.md</code> 真实片段（点击展开）</summary>
+[![learning-kubernetes 交互式页面预览](examples/learning-kubernetes-preview.png)](https://shoothedrifter.github.io/LearningFactory/examples/learning-kubernetes.html)
 
-# Transformer学习路径
+**👉 [在线体验：learning-kubernetes 完整交互式页面](https://shoothedrifter.github.io/LearningFactory/examples/learning-kubernetes.html)**
 
-## Level 1: 概览与动机
-
-### 1.1 Transformer简介
-Transformer是一种基于自注意力机制的神经网络架构，在2017年由Google提出，主要用于自然语言处理任务。它彻底改变了NLP领域，成为现代大型语言模型的基础。
-
-### 1.2 学习目标
-- 理解Transformer的基本概念和重要性
-- 了解传统RNN/LSTM模型的局限性
-- 掌握Transformer的核心创新点
-
-### 1.3 推荐资源
-- 论文：《Attention Is All You Need》
-- 视频：3Blue1Brown的Transformer可视化
-- 博客：Jay Alammar的"The Illustrated Transformer"
-
-## Level 2: 安装与Hello World
-
-### 2.1 环境准备
-```bash
-# 创建虚拟环境
-python -m venv transformer_env
-source transformer_env/bin/activate  # Linux/Mac
-# transformer_env\Scripts\activate  # Windows
-
-# 安装必要库
-pip install torch transformers datasets
-pip install numpy matplotlib seaborn
-```
-
-……（后续为 Level 3-5：核心概念 / 实践模式 / 进阶指引）
-
-</details>
-
-<details>
-<summary>🔗 <code>resources.md</code> 真实片段（点击展开）</summary>
-
-# Transformer 学习资源
-
-## 官方文档
-- **Hugging Face Transformers官方文档**: https://huggingface.co/docs/transformers/zh/index
-- **Hugging Face Transformers快速入门**: https://transformers.run/
-- **PyTorch Transformer实现**: https://github.com/jadore801120/attention-is-all-you-need-pytorch
-- **TensorFlow Transformer实现**: https://github.com/Kyubyong/transformer
-
-## 核心学习资源
-### 教程
-- **保姆级教程：图解Transformer**: https://www.cvmart.net/community/detail/4742
-- **史上最通俗易懂的Transformer教程**: https://zhuanlan.zhihu.com/p/666538342
-- **Transformer模型详解（图解最完整版）**: https://zhuanlan.zhihu.com/p/338817680
-- **GitHub - datawhalechina/learn-nlp-with-transformers**: https://github.com/datawhalechina/learn-nlp-with-transformers
-
-……（视频资源等节略）
-
-### 学术论文
-- **Attention Is All You Need**: https://arxiv.org/abs/1706.03762 (原始Transformer论文)
-- **BERT: Pre-training of Deep Bidirectional Transformers**: https://arxiv.org/abs/1810.04805
-- **GPT-3: Language Models are Few-Shot Learners**: https://arxiv.org/abs/2005.14165
-
-</details>
+页面源文件在 [examples/learning-kubernetes.html](examples/learning-kubernetes.html)（自包含单文件，下载后双击即可离线查看）。
 
 ## 🪛 安装
 
@@ -185,7 +127,7 @@ learning-factory                          # pipx/pip 安装后的入口命令
 python -m learning_factory.agent
 ```
 
-- 输入 `exit` 退出；输入 `clear` 清空对话历史
+- 输入 `exit` 退出；输入 `clear` 清空对话历史；输入 `prune` 瘦身学习包目录（构建 HTML 后删除源文件，只留单文件页面，执行前列清单确认）
 - `--resume`：恢复上次会话；指定路径 `--resume ~/.learning_factory/sessions/<文件>.jsonl`
 - `--output-dir <目录>`：产物输出根目录（默认 `Learning-Factory/`）
 - 过程实时可见：子 Agent 启动/完成（`▶`/`✔`/`✖`）与工具调用逐行打印，最终答案整段输出
@@ -194,11 +136,20 @@ python -m learning_factory.agent
 **手动构建 HTML（存量目录 / 批量出页面）：**
 
 ```bash
-learning-factory-build Learning-Factory/learning-transformer   # 单个目录
+learning-factory-build Learning-Factory/learning-kubernetes   # 单个目录
 learning-factory-build Learning-Factory/                       # 根目录批量构建全部
 ```
 
-产出的 HTML 双击即可离线打开：四 tab 切换（概览 / 学习路径 / 资源 / 代码示例）、刷新停留在当前 tab、学习路径顶部 Level 进度条随滚动高亮、代码示例带语法高亮与行号的嵌套文件树；断网时仅西文字体降级，其余全部正常。
+**瘦身（只留 HTML 单文件）：** 学习包确认完成后，可删除源文件、目录里只留 HTML——分享时单发这一个文件即可。
+
+```bash
+learning-factory-build --prune Learning-Factory/learning-kubernetes   # 构建后删源文件，只留 HTML
+learning-factory-build --prune Learning-Factory/ --yes                 # 批量瘦身（--yes 跳过确认）
+```
+
+瘦身是"这个包我定了、不改了"的终态操作：先重建 HTML 再删源文件（构建失败的目录不删），之后想"继续完成任务"会整体重写、代码示例只能看/复制不能直接运行——还要续写或跑代码就先别瘦身。
+
+产出的 HTML 双击即可离线打开：四 tab 切换（概览 / 学习路径 / 资源 / 代码示例）、刷新停留在当前 tab、资源文档里的链接全部可点击跳转、学习路径顶部 Level 进度条随滚动高亮、代码示例带语法高亮与行号的嵌套文件树；断网时仅西文字体降级，其余全部正常。
 
 ## 📀 会话持久化（CLI）
 
@@ -216,7 +167,7 @@ CLI 模式的对话历史逐轮落盘到家目录 `~/.learning_factory/sessions/
 
 ```bash
 pip install -r requirements-dev.txt
-pytest    # 212 项，全 mock 无需真实 API Key
+pytest    # 233 项，全 mock 无需真实 API Key
 ```
 
 ## 注意事项

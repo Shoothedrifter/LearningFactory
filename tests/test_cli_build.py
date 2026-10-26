@@ -8,7 +8,7 @@ learning-factory-build CLI：单目录/批量/输出覆盖/退出码。
 
 import pytest
 
-from learning_factory.html_builder import HtmlBuildError, main
+from learning_factory.html_builder import HtmlBuildError, main, prune_factory_root
 
 
 def _make_tech_dir(parent, name="learning-demo", bad=False):
@@ -237,3 +237,33 @@ def test_cli_pruned_dir_exits_build_scope(tmp_path, capsys):
     assert main([str(d), "--prune", "--yes"]) == 0
     assert main([str(factory)]) == 1  # 唯一目录已 prune → 无可构建
     assert "无可构建" in capsys.readouterr().err
+
+
+# ── prune_factory_root：脚手架 prune 指令的复用入口 ────────────────────────
+
+def test_prune_factory_root_prunes_all(tmp_path, monkeypatch, capsys):
+    """脚手架入口：对输出根批量清理（确认走 input，行为与 CLI 一致）。"""
+    factory = tmp_path / "Factory"
+    factory.mkdir()
+    for name in ("learning-a", "learning-b"):
+        _full_tech_dir(factory, name=name)
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+    assert prune_factory_root(factory) == 0
+    for name in ("learning-a", "learning-b"):
+        assert (factory / name / f"{name}.html").exists()
+        assert not (factory / name / "README.md").exists()
+    assert "批量清理完成：成功 2 / 失败 0" in capsys.readouterr().out
+
+
+def test_prune_factory_root_empty_returns_1(tmp_path, capsys):
+    """输出根下没有技术目录：返回 1 并提示。"""
+    factory = tmp_path / "Factory"
+    factory.mkdir()
+    assert prune_factory_root(factory) == 1
+    assert "无可清理" in capsys.readouterr().err
+
+
+def test_prune_factory_root_missing_returns_1(tmp_path, capsys):
+    """输出根不存在：返回 1 并提示（不抛异常）。"""
+    assert prune_factory_root(tmp_path / "不存在") == 1
+    assert "不存在" in capsys.readouterr().err

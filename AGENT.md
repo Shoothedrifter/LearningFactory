@@ -30,7 +30,7 @@
 │   │   ├── docs_researcher.md  #   文档研究员
 │   │   ├── repo_analyzer.md    #   仓库分析员
 │   │   ├── web_researcher.md   #   网络研究员
-│   │   └── file_writer.md      #   写入引擎（分块工作流 + 写后验证）
+│   │   └── file_writer.md      #   写入引擎（分块工作流 + 写后验证 + 中文产出语言约束）
 │   │
 │   ├── static/
 │   │   └── index.html          # Web 聊天前端（SSE 消费 + Markdown 渲染 + 过程可视化）
@@ -44,7 +44,7 @@
 │           └── references/
 │               └── progressive-learning.md  # 渐进式学习框架（5 个层级）
 │
-├── tests/                      # pytest 测试（212 项，全 mock 无需真实 API Key）
+├── tests/                      # pytest 测试（233 项，全 mock 无需真实 API Key）
 ├── pyproject.toml              # 打包与依赖真相（入口点 learning-factory / learning-factory-build、requires-python>=3.11）
 ├── requirements.txt            # git clone 直跑场景的依赖清单（版本以 pyproject.toml 为准）
 └── .env                        # 环境变量（API 密钥，从 .env.example 复制）
@@ -154,8 +154,10 @@ MCP 调用使用 `MCP_API_KEY` 认证，不设则回落 `LLM_API_KEY` 共用—�
    - `docs_researcher` → 官方文档（版本、核心概念、API、示例）
    - `repo_analyzer` → 仓库分析（架构、README、examples 目录）
    - `web_researcher` → 社区内容（教程、视频、讨论、常见坑）
-2. **结构化阶段** — 按 5 级渐进式学习框架组织内容
+2. **结构化阶段** — 按 5 级渐进式学习框架组织内容（五级标题固定中文：概览与动机 / 安装与 Hello World / 核心概念 / 实战模式 / 进阶方向）
 3. **输出阶段** — 主 Agent 自身无写入工具，为每个输出文件 dispatch `file_writer` 子 Agent（一轮一文件），在 `Learning-Factory/learning-{tool-name}/` 目录下生成本地文件
+
+**产出语言**：全部文档与代码注释一律简体中文，代码、命令、配置键、专有名词与 URL 保留原文。约束在提示链双层注入——SKILL.md / progressive-learning.md（派单源头，派单时显式携带语言要求）+ file_writer.md（写入出口兜底，无论任务描述与材料语言如何）。此前的英文漂移（英文材料占主导时产物跟随材料语言）由此消除。
 
 **输出结构**：
 ```
@@ -174,11 +176,12 @@ Learning-Factory/learning-{tool-name}/
 
 把学习包的四类产物聚合为一个自包含交互页面的**确定性渲染管线**——零 LLM 调用、零运行时网络依赖（产物 HTML 仅 Google Fonts 一个可选外链）：
 
-- **管线**（`html_builder.py` 纯函数，输入目录只读）：`collect_artifacts`（四产物收集与缺件标记）→ `render_markdown`（markdown + codehilite）→ `extract_levels` + `render_progress`（Level 进度条数据）→ `build_code_tree` + `render_code_panel`（扩展名语言检测 + Pygments 生成期高亮 + `<details>` 嵌套文件树）→ `build_html`（模板 8 占位符单 pass 替换，规避用户内容与占位符碰撞）
+- **管线**（`html_builder.py` 纯函数，输入目录只读）：`collect_artifacts`（四产物收集与缺件标记）→ `render_markdown`（markdown + codehilite + 裸 URL 自动链接 `_autolink` 预处理：包成角括号语法转 `<a>`，跳过行内/围栏代码与既有链接，尾部中英文标点与孤立右括号剥离出 href）→ `extract_levels` + `render_progress`（Level 进度条数据）→ `build_code_tree` + `render_code_panel`（扩展名语言检测 + Pygments 生成期高亮 + `<details>` 嵌套文件树）→ `build_html`（模板 8 占位符单 pass 替换，规避用户内容与占位符碰撞）
 - **模板**（`templates/learning_page.html`）：Notebook Tabs 风格——四 tab 右缘竖排彩色标签、hash 路由（刷新保持当前 tab）、学习路径 scroll spy 滚动高亮、`prefers-reduced-motion` 全量门控、字号间距 clamp 全覆盖
 - **宽容降级**：缺任一产物 → 对应 tab 隐藏 + stderr 警告，构建继续；四类全缺 → 报错退出；非 UTF-8 / dotfile 外的读取失败 → 报错并指明路径；批量模式单目录失败继续其余、退出码取最差
 - **CLI**：`learning-factory-build <技术目录>` 单建（`--output` 覆盖输出路径）；传根目录批量构建全部含产物子目录
 - **自动构建（收尾钩子，二期）**：`agent.py` 的 `_auto_html_build_events` 挂在 `run_main_agent_stream` 两条结束路径（自然最终答案 + 兜底总结）——以本轮对话起点为基准，扫描输出根目录下 mtime 更新的技术目录（`_is_tech_dir` 判定）逐个构建，结果以 `html_build` 事件透出；任何异常降级为一行失败提示，绝不影响会话本体；纯聊天/纯研究轮零命中零噪音。多轮"继续补写"场景每轮自动重建，最终轮页面必然完整
+- **瘦身（--prune / 脚手架 prune 指令）**：CLI `learning-factory-build --prune <目录或根目录>`（`--yes` 跳过确认）与脚手架内置指令 `prune` 共用同一核心（`_collect_prune_dirs` + `_prune_dirs`，脚手架入口 `prune_factory_root`）——逐目录**先重建 HTML、成功才删**四类源产物（md × 3 + `code-examples/`），构建失败的目录源文件原样保留并继续其余；默认列清单 `y` 确认，非交互无输入视为拒绝；只删四类产物本身，目录内其他文件不碰。清瘦后目录不再满足 `_is_tech_dir` 判定，自动退出批量构建范围（终态目录）。语义定位：学习包确认完成后的手动终态操作——瘦身后续写会整体重写、代码示例只能看/复制不能直接运行
 
 ## 两种运行模式
 
@@ -269,6 +272,7 @@ CLI 模式的对话历史逐轮追加落盘到家目录 `~/.learning_factory/ses
 - `--resume <文件路径>`：恢复指定的 `.jsonl` 会话文件
 - 恢复时自动裁掉尾部连续的未回应消息；找不到可恢复会话时开启新会话
 - 输入 `clear` 清空对话历史时会开启新会话文件，旧会话文件保留
+- 输入 `prune` 对输出根全部技术目录执行瘦身（先重建再删源产物、清单确认；见「HTML 构建器」节）
 
 ## 与原版的对应关系
 
@@ -294,12 +298,13 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-测试覆盖（212 项）：同轮多工具并行执行与消息协议完整性（tool_call_id 顺序回填、单工具失败隔离）、
+测试覆盖（233 项）：同轮多工具并行执行与消息协议完整性（tool_call_id 顺序回填、单工具失败隔离）、
 分块写入硬限制（1500 字符）与覆盖防线、同轮同文件写/dispatch 双防线（路径两级启发式提取）、
 dispatch 429 退避重试与并发节流（信号量）、Skill 渐进披露三层加载、模型配置钉住、
 供应商中立钉住（`test_no_glm_names.py`）与 MCP Key 回落（`test_mcp_key_fallback.py`）、
-HTML 构建管线（产物收集/markdown 渲染/进度条/代码树/模板组装/宽容降级/CLI 退出码）与
-收尾自动构建钩子（命中构建/零噪音/失败不炸会话/事件次序）等。
+HTML 构建管线（产物收集/markdown 渲染含 URL 自动链接/进度条/代码树/模板组装/宽容降级/CLI 退出码）、
+收尾自动构建钩子（命中构建/零噪音/失败不炸会话/事件次序）与
+瘦身命令（删前重建/失败保留/确认交互/互斥/脚手架指令异常兜底）等。
 
 ## 注意事项
 

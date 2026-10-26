@@ -12,91 +12,33 @@ The system consists of one **main agent** (the coordinator) and four **sub-agent
 
 ## What It Does
 
-- **One-sentence request, complete learning pack**: a five-level progressive learning path (overview → installation & first steps → core concepts → practical patterns → advanced guidance)
+- **One-sentence request, complete learning pack in Simplified Chinese**: a five-level progressive learning path (overview → installation & first steps → core concepts → practical patterns → advanced guidance); documents are always written in Simplified Chinese (code, commands, and proper nouns stay in their original language)
 - **Three parallel research tracks**: official docs, repository analysis, and community tutorials run concurrently, with cross-validated results
 - **Artifacts written to local disk**: an overview README, a resource roundup, the main learning-path document, and runnable code examples, all written into a local directory
-- **Self-contained interactive HTML**: each conversation turn automatically bundles the pack into a single HTML file (four tabs: overview / learning path / resources / code examples) that opens offline with a double-click; existing directories can also be built manually via `learning-factory-build`
+- **Self-contained interactive HTML**: each conversation turn automatically bundles the pack into a single HTML file (four tabs: overview / learning path / resources / code examples, with every resource link clickable) that opens offline with a double-click; existing directories can also be built manually via `learning-factory-build`
 - **Multi-turn conversation & task continuation**: when files are left unfinished, a single "continue the task" completes them (the HTML rebuilds every turn, so the final turn's page is always complete)
 
-Example structure of a generated learning pack (a real one — learning-transformer):
+Example structure of a generated learning pack (a real one — learning-kubernetes):
 
 ```
-Learning-Factory/learning-transformer/
+Learning-Factory/learning-kubernetes/
 ├── README.md            # Overview and usage notes
 ├── resources.md         # All reference links (grouped by source)
-├── learning-path.md     # The five-level learning path (~1,000 lines)
+├── learning-path.md     # The five-level learning path (~770 lines)
 ├── code-examples/
-│   ├── 01-hello-world/       # 3 starter examples incl. text_generation.py
-│   └── 02-core-concepts/     # 4 core exercises incl. multi_head_attention.py
-└── learning-transformer.html # Self-contained interactive page (auto-built at turn end)
+│   ├── 01-hello-world/       # nginx-pod.yaml starter example
+│   ├── 02-core-concepts/     # deployment / service / configmap-secret — 3 core exercises
+│   └── 03-patterns/          # cronjob / ingress / stateful-app — 4 practice patterns
+└── learning-kubernetes.html  # Self-contained interactive page (auto-built at turn end)
 ```
 
-Ten packs have been generated locally across different topics (transformer / docker / kubernetes / pytorch / ai-agent / vllm, among others). Below are real excerpts from the learning-transformer pack's `learning-path.md` and `resources.md` (translated from the actual Chinese output):
+Ten packs have been generated locally across different topics (transformer / docker / kubernetes / pytorch / ai-agent / vllm, among others). The learning-kubernetes pack, for instance, aggregates into the self-contained interactive page linked below — four tabs (overview / learning path / resources / code examples), clickable links, works offline:
 
-<details>
-<summary>📖 Real excerpt from <code>learning-path.md</code> (click to expand)</summary>
+[![learning-kubernetes interactive page preview](examples/learning-kubernetes-preview.png)](https://shoothedrifter.github.io/LearningFactory/examples/learning-kubernetes.html)
 
-# Transformer Learning Path
+**👉 [Try it live: the full learning-kubernetes interactive page](https://shoothedrifter.github.io/LearningFactory/examples/learning-kubernetes.html)**
 
-## Level 1: Overview & Motivation
-
-### 1.1 What is the Transformer
-The Transformer is a neural-network architecture built on the self-attention mechanism, proposed by Google in 2017, mainly for natural language processing tasks. It completely transformed the NLP field and became the foundation of modern large language models.
-
-### 1.2 Learning Goals
-- Understand the basic concepts and importance of the Transformer
-- Know the limitations of traditional RNN/LSTM models
-- Master the core innovations of the Transformer
-
-### 1.3 Recommended Resources
-- Paper: "Attention Is All You Need"
-- Video: 3Blue1Brown's Transformer visualization
-- Blog: Jay Alammar's "The Illustrated Transformer"
-
-## Level 2: Installation & Hello World
-
-### 2.1 Environment Setup
-```bash
-# Create a virtual environment
-python -m venv transformer_env
-source transformer_env/bin/activate  # Linux/Mac
-# transformer_env\Scripts\activate  # Windows
-
-# Install required libraries
-pip install torch transformers datasets
-pip install numpy matplotlib seaborn
-```
-
-... (followed by Levels 3-5: core concepts / practical patterns / advanced guidance)
-
-</details>
-
-<details>
-<summary>🔗 Real excerpt from <code>resources.md</code> (click to expand)</summary>
-
-# Transformer Learning Resources
-
-## Official Documentation
-- **Hugging Face Transformers docs**: https://huggingface.co/docs/transformers/zh/index
-- **Hugging Face Transformers quick start**: https://transformers.run/
-- **PyTorch Transformer implementation**: https://github.com/jadore801120/attention-is-all-you-need-pytorch
-- **TensorFlow Transformer implementation**: https://github.com/Kyubyong/transformer
-
-## Core Learning Resources
-### Tutorials
-- **Illustrated Transformer tutorial**: https://www.cvmart.net/community/detail/4742
-- **The most approachable Transformer tutorial**: https://zhuanlan.zhihu.com/p/666538342
-- **Transformer explained (fully illustrated)**: https://zhuanlan.zhihu.com/p/338817680
-- **GitHub - datawhalechina/learn-nlp-with-transformers**: https://github.com/datawhalechina/learn-nlp-with-transformers
-
-... (video resources and other sections omitted)
-
-### Papers
-- **Attention Is All You Need**: https://arxiv.org/abs/1706.03762 (the original Transformer paper)
-- **BERT: Pre-training of Deep Bidirectional Transformers**: https://arxiv.org/abs/1810.04805
-- **GPT-3: Language Models are Few-Shot Learners**: https://arxiv.org/abs/2005.14165
-
-</details>
+The page source lives at [examples/learning-kubernetes.html](examples/learning-kubernetes.html) (a self-contained single file — download it and double-click to view offline).
 
 ## Installation
 
@@ -185,7 +127,7 @@ learning-factory                          # entry command after pipx/pip install
 python -m learning_factory.agent
 ```
 
-- Type `exit` to quit; type `clear` to reset the conversation history
+- Type `exit` to quit; type `clear` to reset the conversation history; type `prune` to slim learning-pack directories down to a single HTML file each (builds the HTML, then deletes the source files, with a confirmation list first)
 - `--resume`: resume the last session; or pass a path: `--resume ~/.learning_factory/sessions/<file>.jsonl`
 - `--output-dir <dir>`: root directory for generated artifacts (default `Learning-Factory/`)
 - Progress is streamed live: sub-agent start/finish (`▶`/`✔`/`✖`) and each tool call are printed line by line, with the final answer printed as a whole
@@ -194,11 +136,20 @@ python -m learning_factory.agent
 **Build HTML manually (existing directories / batch):**
 
 ```bash
-learning-factory-build Learning-Factory/learning-transformer   # a single directory
+learning-factory-build Learning-Factory/learning-kubernetes   # a single directory
 learning-factory-build Learning-Factory/                       # the root directory, building all packs
 ```
 
-The generated HTML opens offline with a double-click: four tabs (overview / learning path / resources / code examples), refresh keeps the current tab, the Level progress bar highlights as you scroll, and code examples come with syntax highlighting, line numbers, and a nested file tree; offline, only the Latin fonts degrade — everything else keeps working.
+**Prune (keep only the single HTML file):** once a pack is confirmed complete, you can delete the source files and leave just the HTML — sharing it means sending that one file.
+
+```bash
+learning-factory-build --prune Learning-Factory/learning-kubernetes   # build, then delete source files
+learning-factory-build --prune Learning-Factory/ --yes                 # prune all packs (--yes skips confirmation)
+```
+
+Pruning is a terminal-state operation for packs you consider final: the HTML is rebuilt first and only then are sources deleted (directories that fail to build keep their sources). Afterwards, a "continue the task" would rewrite everything from scratch, and code examples can only be viewed/copied, not run directly — hold off if you still plan to continue or run the code.
+
+The generated HTML opens offline with a double-click: four tabs (overview / learning path / resources / code examples), refresh keeps the current tab, every link in the resources tab is clickable, the Level progress bar highlights as you scroll, and code examples come with syntax highlighting, line numbers, and a nested file tree; offline, only the Latin fonts degrade — everything else keeps working.
 
 ## Session Persistence (CLI)
 
@@ -216,7 +167,7 @@ Architecture design (agent collaboration / ReAct loop), tool system and assignme
 
 ```bash
 pip install -r requirements-dev.txt
-pytest    # 212 tests, fully mocked, no real API key needed
+pytest    # 233 tests, fully mocked, no real API key needed
 ```
 
 ## Notes

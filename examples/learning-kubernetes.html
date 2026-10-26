@@ -1,0 +1,2538 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>kubernetes · Learning Factory</title>
+<!--
+  西文字体在线加载，离线自动降级到系统栈（中文正文恒走系统字体）。
+  替换字体：改下方 <link> 与 :root 中 --font-* 变量即可。
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,700&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* === 主题变量（Notebook Tabs） === */
+:root {
+  --bg-outer: #2d2d2d;
+  --bg-paper: #f8f6f1;
+  --ink: #1a1a1a;
+  --ink-soft: #55504a;
+  --tab-overview: #98d4bb;   /* 薄荷 */
+  --tab-path: #c7b8ea;       /* 薰衣草 */
+  --tab-resources: #f4b8c5;  /* 粉 */
+  --tab-code: #a8d8ea;       /* 天蓝 */
+  --font-display: "Bodoni Moda", "Songti SC", "Noto Serif SC", serif;
+  --font-body: "DM Sans", "PingFang SC", "Hiragino Sans GB",
+               "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* === 外框桌面（深灰 + 细网格纹理） === */
+body {
+  margin: 0;
+  background: var(--bg-outer);
+  background-image:
+    linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+  color: var(--ink);
+  font-family: var(--font-body);
+  line-height: 1.75;
+}
+.desk {
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; align-items: flex-start;
+  gap: clamp(2px, .6vw, 8px);
+  padding: clamp(10px, 3vw, 40px);
+  box-sizing: border-box;
+}
+
+/* === 奶油纸面卡片 + 装订孔 === */
+.paper {
+  flex: 1; min-width: 0;
+  position: relative;
+  background: var(--bg-paper);
+  border-radius: 6px;
+  box-shadow: 0 clamp(4px,1vw,14px) rgba(0,0,0,.35);
+  padding: clamp(1.2rem, 4vw, 3.5rem) clamp(1.2rem, 5vw, 4.5rem);
+}
+.binder-holes {
+  position: absolute;
+  left: clamp(6px, 1.2vw, 16px); top: 0; bottom: 0;
+  display: flex; flex-direction: column; justify-content: space-evenly;
+}
+.binder-holes i {
+  width: clamp(8px, 1.2vw, 14px); height: clamp(8px, 1.2vw, 14px);
+  border-radius: 50%;
+  background: var(--bg-outer);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.5);
+}
+
+/* === 右缘竖排彩色标签（tab 本体） === */
+.side-tabs { display: flex; flex-direction: column; gap: clamp(4px, .8vh, 10px); }
+.side-tab {
+  writing-mode: vertical-rl;
+  font-family: var(--font-body); font-weight: 700;
+  font-size: clamp(.75rem, 1.4vh, .95rem);
+  letter-spacing: .2em;
+  color: var(--bg-paper);
+  background: rgba(248,246,241,.18);
+  border: none; border-radius: 0 6px 6px 0;
+  padding: clamp(.7rem, 2vh, 1.4rem) clamp(.4rem, 1vw, .7rem);
+  cursor: pointer;
+}
+/* 标签过渡与悬停位移仅在用户未偏好减少动效时启用（规格 §3.4） */
+@media (prefers-reduced-motion: no-preference) {
+  .side-tab { transition: transform .25s ease, background-color .25s ease; }
+  .side-tab:hover { transform: translateX(calc(-1 * clamp(3px, .4vw, 6px))); }
+}
+.side-tab[data-tab=overview].active { background: var(--tab-overview); color: var(--ink); }
+.side-tab[data-tab=path].active { background: var(--tab-path); color: var(--ink); }
+.side-tab[data-tab=resources].active { background: var(--tab-resources); color: var(--ink); }
+.side-tab[data-tab=code].active { background: var(--tab-code); color: var(--ink); }
+
+/* === 面板与进场动效 === */
+/* .js 前缀由脚本首行添加：无 JS 环境下四面板纵向全显、锚点可用（后备） */
+.js .panel { display: none; }
+.js .panel.active { display: block; }
+@media (prefers-reduced-motion: no-preference) {
+  .panel.active > * {
+    animation: rise .5s ease both;
+  }
+  .panel.active > *:nth-child(2) { animation-delay: .06s; }
+  .panel.active > *:nth-child(3) { animation-delay: .12s; }
+  .panel.active > *:nth-child(4) { animation-delay: .18s; }
+  .panel.active > *:nth-child(5) { animation-delay: .24s; }
+  .panel.active > *:nth-child(n+6) { animation-delay: .3s; }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+/* === 学习进度条（Level 1-5 横向） === */
+.level-progress {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: clamp(.4rem, 2vw, 1.6rem);
+  border-bottom: 2px solid rgba(26,26,26,.12);
+  padding-bottom: clamp(.6rem, 2vh, 1.2rem);
+  margin-bottom: clamp(.8rem, 3vh, 2rem);
+}
+.progress-step { text-decoration: none; color: var(--ink); display: flex; align-items: baseline; gap: .35em; }
+.progress-step .step-num {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: clamp(1.4rem, 4vw, 2.2rem); line-height: 1;
+}
+.progress-step .step-title { font-size: clamp(.72rem, 1.6vw, .9rem); color: var(--ink-soft); }
+/* scroll spy 当前章节高亮：数字转薰衣草加深（同 .panel a 链接色）加下划短线，标题加深 */
+.progress-step.active .step-num {
+  color: #7a5ea8;
+  text-decoration: underline;
+  text-decoration-color: var(--tab-path);
+  text-decoration-thickness: 3px;
+  text-underline-offset: .18em;
+}
+.progress-step.active .step-title { color: var(--ink); font-weight: 500; }
+@media (prefers-reduced-motion: no-preference) {
+  .progress-step .step-num, .progress-step .step-title { transition: color .25s ease; }
+}
+
+/* === markdown 排版 === */
+.panel h1, .panel h2, .panel h3 {
+  font-family: var(--font-display); font-weight: 700;
+  line-height: 1.25; margin: 1.6em 0 .6em;
+}
+.panel h1 { font-size: clamp(1.7rem, 5vw, 2.6rem); }
+.panel h2 {
+  font-size: clamp(1.3rem, 3.6vw, 1.9rem);
+  border-left: 4px solid var(--tab-path); padding-left: .5em;
+}
+.panel a { color: #7a5ea8; }
+.panel table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: clamp(.8rem, 1.8vw, .95rem); }
+.panel th, .panel td { border: 1px solid rgba(26,26,26,.18); padding: .45em .7em; text-align: left; }
+.panel th { background: rgba(26,26,26,.06); }
+.panel blockquote {
+  margin: 1em 0; padding: .2em 1em;
+  border-left: 3px solid var(--tab-resources); color: var(--ink-soft);
+}
+.panel :not(pre) > code {
+  font-family: var(--font-mono); font-size: .9em;
+  background: rgba(26,26,26,.07); padding: .1em .35em; border-radius: 3px;
+}
+
+/* === 代码 tab：文件树 + 查看器 === */
+.code-layout { display: flex; gap: clamp(.6rem, 2vw, 1.4rem); align-items: flex-start; }
+.code-file-nav {
+  flex: 0 0 auto; max-width: 34%;
+  max-height: min(70vh, 640px); overflow: auto;
+  display: flex; flex-direction: column; gap: .3rem;
+}
+.code-file-btn {
+  font-family: var(--font-mono); font-size: clamp(.68rem, 1.5vw, .82rem);
+  text-align: left; border: 1px solid rgba(26,26,26,.2);
+  background: rgba(255,255,255,.5); color: var(--ink);
+  border-radius: 4px; padding: .45em .6em; cursor: pointer;
+}
+.code-file-btn.active { background: var(--tab-code); }
+.lang-chip { font-style: normal; opacity: .6; margin-left: .5em; }
+/* === 文件树目录（原生 details，无 JS 亦可开合）：层级缩进与箭头图标 === */
+.code-dir { display: flex; flex-direction: column; gap: .3rem; }
+.code-dir > summary {
+  font-family: var(--font-mono); font-size: clamp(.68rem, 1.5vw, .82rem);
+  font-weight: 700; color: var(--ink-soft); cursor: pointer;
+  list-style: none; user-select: none; padding: .2em 0;
+}
+.code-dir > summary::-webkit-details-marker { display: none; } /* 自绘箭头替代原生三角 */
+.dir-arrow {
+  display: inline-block; width: 0; height: 0;
+  border-top: .28em solid transparent; border-bottom: .28em solid transparent;
+  border-left: .36em solid currentColor;
+  margin-right: .5em; vertical-align: middle;
+}
+/* 子级缩进 + 虚线引导线体现嵌套层级 */
+.dir-children {
+  display: flex; flex-direction: column; gap: .3rem;
+  margin-left: .55em; padding-left: .7em;
+  border-left: 1px dashed rgba(26,26,26,.28);
+}
+/* 目录展开动效（箭头旋转 + 内容淡入位移）仅在用户未偏好减少动效时启用（规格 §3.4） */
+@media (prefers-reduced-motion: no-preference) {
+  .dir-arrow { transition: transform .25s ease; }
+  .code-dir[open] > summary .dir-arrow { transform: rotate(90deg); }
+  .code-dir[open] > .dir-children { animation: tree-fade .25s ease both; }
+  @keyframes tree-fade {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+.code-views { flex: 1; min-width: 0; }
+.code-viewer { display: none; }
+/* first-of-type 兜底默认显示首文件仅服务无 JS 环境；JS 生效时互斥由 .active 独占
+   （否则 :first-of-type 恒生效，点击非首文件时两个查看器同屏叠显） */
+.code-viewer:first-of-type, .code-viewer.active { display: block; }
+.js .code-viewer { display: none; }
+.js .code-viewer.active { display: block; }
+.code-viewer pre {
+  font-family: var(--font-mono); font-size: clamp(.72rem, 1.6vw, .88rem);
+  line-height: 1.6; overflow: auto; margin: 0;
+  background: #fff; border: 1px solid rgba(26,26,26,.15);
+  border-radius: 4px; padding: .8em 1em;
+  max-height: min(75vh, 720px);
+}
+.panel .highlight pre { overflow: auto; background: #fff; border-radius: 4px; padding: .8em 1em; border: 1px solid rgba(26,26,26,.15); }
+.panel td.linenos { text-align: right; color: var(--ink-soft); padding-right: .6em; user-select: none; }
+
+/* === 响应式：窄屏标签折叠为底部横排 === */
+@media (max-width: 720px) {
+  .desk { flex-direction: column-reverse; padding: clamp(8px, 3vw, 16px); gap: 8px; }
+  .side-tabs { flex-direction: row; justify-content: center; flex-wrap: wrap; }
+  .side-tab { writing-mode: horizontal-tb; border-radius: 6px 6px 0 0; letter-spacing: .05em; }
+  .code-layout { flex-direction: column; }
+  .code-file-nav { max-width: 100%; max-height: 30vh; }
+}
+@media (max-height: 700px) { .panel h1 { margin-top: .6em; } }
+@media (max-height: 600px) { .level-progress { padding-bottom: .4rem; } }
+@media (max-height: 500px) { .panel { font-size: .95em; } }
+
+pre { line-height: 125%; }
+td.linenos .normal { color: #666666; background-color: transparent; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #666666; background-color: transparent; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #000000; background-color: #ffffc0; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #ffffcc }
+.highlight { background: #f0f0f0; }
+.highlight .c { color: #60A0B0; font-style: italic } /* Comment */
+.highlight .err { border: 1px solid #F00 } /* Error */
+.highlight .k { color: #007020; font-weight: bold } /* Keyword */
+.highlight .o { color: #666 } /* Operator */
+.highlight .ch { color: #60A0B0; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #60A0B0; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #007020 } /* Comment.Preproc */
+.highlight .cpf { color: #60A0B0; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #60A0B0; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #60A0B0; background-color: #FFF0F0 } /* Comment.Special */
+.highlight .gd { color: #A00000 } /* Generic.Deleted */
+.highlight .ge { font-style: italic } /* Generic.Emph */
+.highlight .ges { font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #F00 } /* Generic.Error */
+.highlight .gh { color: #000080; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #00A000 } /* Generic.Inserted */
+.highlight .go { color: #888 } /* Generic.Output */
+.highlight .gp { color: #C65D09; font-weight: bold } /* Generic.Prompt */
+.highlight .gs { font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #800080; font-weight: bold } /* Generic.Subheading */
+.highlight .gt { color: #04D } /* Generic.Traceback */
+.highlight .kc { color: #007020; font-weight: bold } /* Keyword.Constant */
+.highlight .kd { color: #007020; font-weight: bold } /* Keyword.Declaration */
+.highlight .kn { color: #007020; font-weight: bold } /* Keyword.Namespace */
+.highlight .kp { color: #007020 } /* Keyword.Pseudo */
+.highlight .kr { color: #007020; font-weight: bold } /* Keyword.Reserved */
+.highlight .kt { color: #902000 } /* Keyword.Type */
+.highlight .m { color: #40A070 } /* Literal.Number */
+.highlight .s { color: #4070A0 } /* Literal.String */
+.highlight .na { color: #4070A0 } /* Name.Attribute */
+.highlight .nb { color: #007020 } /* Name.Builtin */
+.highlight .nc { color: #0E84B5; font-weight: bold } /* Name.Class */
+.highlight .no { color: #60ADD5 } /* Name.Constant */
+.highlight .nd { color: #555; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #D55537; font-weight: bold } /* Name.Entity */
+.highlight .ne { color: #007020 } /* Name.Exception */
+.highlight .nf { color: #06287E } /* Name.Function */
+.highlight .nl { color: #002070; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #0E84B5; font-weight: bold } /* Name.Namespace */
+.highlight .nt { color: #062873; font-weight: bold } /* Name.Tag */
+.highlight .nv { color: #BB60D5 } /* Name.Variable */
+.highlight .ow { color: #007020; font-weight: bold } /* Operator.Word */
+.highlight .w { color: #BBB } /* Text.Whitespace */
+.highlight .mb { color: #40A070 } /* Literal.Number.Bin */
+.highlight .mf { color: #40A070 } /* Literal.Number.Float */
+.highlight .mh { color: #40A070 } /* Literal.Number.Hex */
+.highlight .mi { color: #40A070 } /* Literal.Number.Integer */
+.highlight .mo { color: #40A070 } /* Literal.Number.Oct */
+.highlight .sa { color: #4070A0 } /* Literal.String.Affix */
+.highlight .sb { color: #4070A0 } /* Literal.String.Backtick */
+.highlight .sc { color: #4070A0 } /* Literal.String.Char */
+.highlight .dl { color: #4070A0 } /* Literal.String.Delimiter */
+.highlight .sd { color: #4070A0; font-style: italic } /* Literal.String.Doc */
+.highlight .s2 { color: #4070A0 } /* Literal.String.Double */
+.highlight .se { color: #4070A0; font-weight: bold } /* Literal.String.Escape */
+.highlight .sh { color: #4070A0 } /* Literal.String.Heredoc */
+.highlight .si { color: #70A0D0; font-style: italic } /* Literal.String.Interpol */
+.highlight .sx { color: #C65D09 } /* Literal.String.Other */
+.highlight .sr { color: #235388 } /* Literal.String.Regex */
+.highlight .s1 { color: #4070A0 } /* Literal.String.Single */
+.highlight .ss { color: #517918 } /* Literal.String.Symbol */
+.highlight .bp { color: #007020 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #06287E } /* Name.Function.Magic */
+.highlight .vc { color: #BB60D5 } /* Name.Variable.Class */
+.highlight .vg { color: #BB60D5 } /* Name.Variable.Global */
+.highlight .vi { color: #BB60D5 } /* Name.Variable.Instance */
+.highlight .vm { color: #BB60D5 } /* Name.Variable.Magic */
+.highlight .il { color: #40A070 } /* Literal.Number.Integer.Long */
+</style>
+</head>
+<body>
+<div class="desk">
+  <main class="paper">
+    <div class="binder-holes" aria-hidden="true"><i></i><i></i><i></i></div>
+    <section id="panel-overview" class="panel"><h1 id="kubernetes">Kubernetes 学习路径</h1>
+<h2 id="_1">概览</h2>
+<p>Kubernetes（简称 K8s）是开源的容器编排系统，用于自动化部署、扩展和管理容器化应用。由 CNCF（Cloud Native Computing Foundation）托管，当前稳定版本为 v1.33。</p>
+<p>本学习路径按照渐进式五个级别组织，从概念理解到实际操作，帮助你系统掌握 Kubernetes。</p>
+<h2 id="_2">如何使用本学习路径</h2>
+<ol>
+<li><strong>按顺序学习</strong>：从 Level 1 到 Level 5，每个级别都建立在前一个的基础之上</li>
+<li><strong>动手实践</strong>：每个代码示例都在 <code>code-examples/</code> 目录中，请实际运行</li>
+<li><strong>查阅资源</strong>：<code>resources.md</code> 收录了所有官方文档和社区资源的链接</li>
+<li><strong>主线学习</strong>：<code>learning-path.md</code> 是核心学习指南，按级别逐步深入</li>
+</ol>
+<h2 id="_3">目录结构</h2>
+<div class="highlight"><pre><span></span><code>learning-kubernetes/
+├── README.md           # 本文件
+├── resources.md        # 所有学习资源链接
+├── learning-path.md    # 五级学习路径主文档
+└── code-examples/      # 可运行的代码示例
+    ├── 01-hello-world/
+    ├── 02-core-concepts/
+    └── 03-patterns/
+</code></pre></div>
+
+<h2 id="_4">前置知识</h2>
+<ul>
+<li>Linux 命令行基础</li>
+<li>Docker/容器基础概念（镜像、容器、Dockerfile）</li>
+<li>YAML 基础语法</li>
+<li>网络基础（IP、端口、DNS）</li>
+</ul>
+<h2 id="_5">预计学习时间</h2>
+<table>
+<thead>
+<tr>
+<th>级别</th>
+<th>内容</th>
+<th>预计时间</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Level 1</td>
+<td>概览与动机</td>
+<td>2-3 小时</td>
+</tr>
+<tr>
+<td>Level 2</td>
+<td>安装与 Hello World</td>
+<td>3-4 小时</td>
+</tr>
+<tr>
+<td>Level 3</td>
+<td>核心概念</td>
+<td>8-10 小时</td>
+</tr>
+<tr>
+<td>Level 4</td>
+<td>实践模式</td>
+<td>10-15 小时</td>
+</tr>
+<tr>
+<td>Level 5</td>
+<td>进阶方向</td>
+<td>持续学习</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_6">快速开始</h2>
+<div class="highlight"><pre><span></span><code><span class="c1"># 1. 安装 kubectl</span>
+<span class="c1"># macOS</span>
+brew<span class="w"> </span>install<span class="w"> </span>kubectl
+<span class="c1"># Linux</span>
+curl<span class="w"> </span>-LO<span class="w"> </span><span class="s2">"https://dl.k8s.io/release/</span><span class="k">$(</span>curl<span class="w"> </span>-L<span class="w"> </span>-s<span class="w"> </span>https://dl.k8s.io/release/stable.txt<span class="k">)</span><span class="s2">/bin/linux/amd64/kubectl"</span>
+
+<span class="c1"># 2. 安装 minikube</span>
+<span class="c1"># macOS</span>
+brew<span class="w"> </span>install<span class="w"> </span>minikube
+<span class="c1"># Linux</span>
+curl<span class="w"> </span>-LO<span class="w"> </span>https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo<span class="w"> </span>install<span class="w"> </span>minikube-linux-amd64<span class="w"> </span>/usr/local/bin/minikube
+
+<span class="c1"># 3. 启动集群</span>
+minikube<span class="w"> </span>start
+
+<span class="c1"># 4. 验证</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>nodes
+</code></pre></div></section>
+    <section id="panel-path" class="panel"><nav class="level-progress" aria-label="学习进度"><a class="progress-step" href="#level-1"><span class="step-num">01</span><span class="step-title">概览与动机</span></a><a class="progress-step" href="#level-2-hello-world"><span class="step-num">02</span><span class="step-title">安装与 Hello World</span></a><a class="progress-step" href="#level-3"><span class="step-num">03</span><span class="step-title">核心概念</span></a><a class="progress-step" href="#level-4"><span class="step-num">04</span><span class="step-title">实践模式</span></a><a class="progress-step" href="#level-5"><span class="step-num">05</span><span class="step-title">进阶方向</span></a></nav><h1 id="kubernetes">Kubernetes 学习路径</h1>
+<hr />
+<h2 id="level-1">Level 1: 概览与动机</h2>
+<h3 id="kubernetes_1">目标：理解 Kubernetes 是什么以及为什么需要它</h3>
+<h3 id="11-kubernetes">1.1 Kubernetes 解决什么问题</h3>
+<p>在容器化时代，单个容器很容易管理，但生产环境中你面临以下挑战：
+- 容器挂了需要自动重启
+- 需要按需自动扩缩容
+- 多个容器之间需要负载均衡和服务发现
+- 需要滚动更新和回滚
+- 需要管理配置和密钥</p>
+<p>Kubernetes 就是解决这些问题的<strong>容器编排系统</strong>——它自动管理容器化应用的全生命周期。</p>
+<h3 id="12">1.2 部署演进历史</h3>
+<table>
+<thead>
+<tr>
+<th>时代</th>
+<th>方式</th>
+<th>问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>传统部署</td>
+<td>应用直接跑在物理服务器上</td>
+<td>无资源隔离，扩展困难</td>
+</tr>
+<tr>
+<td>虚拟化部署</td>
+<td>每个应用跑在 VM 中</td>
+<td>VM 太重（每个包含完整 OS）</td>
+</tr>
+<tr>
+<td>容器部署</td>
+<td>应用跑在容器中</td>
+<td>轻量、可移植、但数量多了需要编排</td>
+</tr>
+</tbody>
+</table>
+<h3 id="13-kubernetes">1.3 Kubernetes 的核心能力</h3>
+<ul>
+<li><strong>服务发现与负载均衡</strong>：通过 DNS/IP 暴露容器，自动负载均衡</li>
+<li><strong>存储编排</strong>：自动挂载本地、云等多种存储系统</li>
+<li><strong>自动滚动发布与回滚</strong>：以受控速率管理期望状态</li>
+<li><strong>自动装箱</strong>：根据 CPU/内存需求将容器调度到合适节点</li>
+<li><strong>自愈</strong>：重启/替换故障容器，就绪前不对外服务</li>
+<li><strong>密钥与配置管理</strong>：无需重建镜像即可管理敏感信息</li>
+<li><strong>水平扩展</strong>：通过命令、UI 或自动扩缩实现</li>
+</ul>
+<h3 id="14-kubernetes">1.4 谁在使用 Kubernetes</h3>
+<p>Spotify（1600+ 服务）、Airbnb、Netflix（每日数百 TB 数据）、Pinterest、Uber 等大型互联网公司，以及大量中小企业。K8s 在生产环境采用率约 82%。</p>
+<h3 id="15-kubernetes">1.5 何时不应使用 Kubernetes</h3>
+<ul>
+<li>你的应用是单体应用且无容器化计划</li>
+<li>团队规模很小（&lt;5 人），运维 K8s 的成本可能超过收益</li>
+<li>仅需运行少量容器，Docker Compose 就够了</li>
+<li>不需要高可用、自动扩缩等高级功能</li>
+<li>团队没有容器和 Linux 网络基础</li>
+</ul>
+<h3 id="16-kubernetes-vs">1.6 Kubernetes vs 替代方案</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>Kubernetes</th>
+<th>Docker Swarm</th>
+<th>Nomad</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>复杂度</td>
+<td>高</td>
+<td>低</td>
+<td>低-中</td>
+</tr>
+<tr>
+<td>功能丰富度</td>
+<td>非常丰富</td>
+<td>基础</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>生态系统</td>
+<td>庞大（Helm, Istio, ArgoCD 等）</td>
+<td>小</td>
+<td>HashiCorp 生态</td>
+</tr>
+<tr>
+<td>适合规模</td>
+<td>大规模</td>
+<td>小规模</td>
+<td>中等规模</td>
+</tr>
+<tr>
+<td>支持非容器工作负载</td>
+<td>否</td>
+<td>否</td>
+<td>是（VM, 批处理等）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="level-2-hello-world">Level 2: 安装与 Hello World</h2>
+<h3 id="kubernetes_2">目标：在本地运行 Kubernetes 并部署第一个应用</h3>
+<h3 id="21">2.1 前置条件</h3>
+<ul>
+<li>Docker 或其他容器运行时已安装</li>
+<li>kubectl 命令行工具</li>
+<li>至少 4GB 可用内存（推荐 8GB+）</li>
+<li>Linux/macOS/Windows 任一操作系统</li>
+</ul>
+<h3 id="22-kubectl">2.2 安装 kubectl</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># macOS</span>
+brew<span class="w"> </span>install<span class="w"> </span>kubectl
+
+<span class="c1"># Linux (amd64)</span>
+curl<span class="w"> </span>-LO<span class="w"> </span><span class="s2">"https://dl.k8s.io/release/</span><span class="k">$(</span>curl<span class="w"> </span>-L<span class="w"> </span>-s<span class="w"> </span>https://dl.k8s.io/release/stable.txt<span class="k">)</span><span class="s2">/bin/linux/amd64/kubectl"</span>
+chmod<span class="w"> </span>+x<span class="w"> </span>kubectl
+sudo<span class="w"> </span>mv<span class="w"> </span>kubectl<span class="w"> </span>/usr/local/bin/
+
+<span class="c1"># 验证</span>
+kubectl<span class="w"> </span>version<span class="w"> </span>--client
+</code></pre></div>
+
+<h3 id="23-minikube">2.3 安装 minikube（推荐初学者）</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># macOS</span>
+brew<span class="w"> </span>install<span class="w"> </span>minikube
+
+<span class="c1"># Linux</span>
+curl<span class="w"> </span>-LO<span class="w"> </span>https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo<span class="w"> </span>install<span class="w"> </span>minikube-linux-amd64<span class="w"> </span>/usr/local/bin/minikube
+
+<span class="c1"># 验证</span>
+minikube<span class="w"> </span>version
+</code></pre></div>
+
+<h3 id="24">2.4 启动集群并验证</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># 启动本地集群</span>
+minikube<span class="w"> </span>start
+
+<span class="c1"># 查看集群信息</span>
+kubectl<span class="w"> </span>cluster-info
+
+<span class="c1"># 查看节点</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>nodes
+
+<span class="c1"># 期望输出:</span>
+<span class="c1"># NAME       STATUS   ROLES           AGE   VERSION</span>
+<span class="c1"># minikube   Ready    control-plane   1m    v1.33.0</span>
+</code></pre></div>
+
+<h3 id="25-hello-world">2.5 部署第一个应用 (Hello World)</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># 创建一个 Deployment</span>
+kubectl<span class="w"> </span>create<span class="w"> </span>deployment<span class="w"> </span>kubernetes-bootcamp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--image<span class="o">=</span>gcr.io/google-samples/kubernetes-bootcamp:v1
+
+<span class="c1"># 查看 Deployment</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>deployments
+
+<span class="c1"># 查看 Pod</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>pods
+
+<span class="c1"># 期望输出:</span>
+<span class="c1"># NAME                                   READY   STATUS    RESTARTS   AGE</span>
+<span class="c1"># kubernetes-bootcamp-xxx-xxx           1/1     Running   0          30s</span>
+</code></pre></div>
+
+<h3 id="26">2.6 暴露应用</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># 创建 Service 暴露应用</span>
+kubectl<span class="w"> </span>expose<span class="w"> </span>deployment<span class="w"> </span>kubernetes-bootcamp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--type<span class="o">=</span>LoadBalancer<span class="w"> </span>--port<span class="o">=</span><span class="m">8080</span>
+
+<span class="c1"># 查看 Service</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>services
+
+<span class="c1"># 在 minikube 中访问</span>
+minikube<span class="w"> </span>service<span class="w"> </span>kubernetes-bootcamp
+
+<span class="c1"># 或使用端口转发</span>
+kubectl<span class="w"> </span>port-forward<span class="w"> </span>service/kubernetes-bootcamp<span class="w"> </span><span class="m">8080</span>:8080
+<span class="c1"># 然后访问 http://localhost:8080</span>
+</code></pre></div>
+
+<h3 id="27">2.7 清理</h3>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>delete<span class="w"> </span>deployment<span class="w"> </span>kubernetes-bootcamp
+kubectl<span class="w"> </span>delete<span class="w"> </span>service<span class="w"> </span>kubernetes-bootcamp
+minikube<span class="w"> </span>stop
+</code></pre></div>
+
+<h3 id="28">2.8 常见问题</h3>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>解决方案</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>minikube start 卡住</td>
+<td>确认 Docker 已启动，或尝试 <code>minikube start --driver=docker</code></td>
+</tr>
+<tr>
+<td>Pod 状态一直是 Pending</td>
+<td>运行 <code>kubectl describe pod &lt;name&gt;</code> 查看事件</td>
+</tr>
+<tr>
+<td>ImagePullBackOff</td>
+<td>检查镜像名称是否正确，网络是否可达</td>
+</tr>
+<tr>
+<td>kubectl 连接超时</td>
+<td>确认 minikube 已启动，运行 <code>minikube status</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="level-3">Level 3: 核心概念</h2>
+<h3 id="kubernetes_3">目标：建立 Kubernetes 的心智模型</h3>
+<h3 id="31-pod">3.1 Pod — 最小部署单元</h3>
+<p>Pod 是 Kubernetes 中最小的可部署单元，包含一个或多个容器。同一 Pod 内的容器共享网络和存储。</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># 一个简单的 Pod</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Pod</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx-pod</span>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx:1.25</span>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">containerPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">    </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">"64Mi"</span>
+<span class="w">        </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">"250m"</span>
+<span class="w">      </span><span class="nt">limits</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">"128Mi"</span>
+<span class="w">        </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">"500m"</span>
+</code></pre></div>
+
+<p><strong>要点</strong>：
+- Pod 是临时的（ephemeral），销毁后不会重建
+- 同一 Pod 内容器共享 IP 和端口空间，通过 localhost 通信
+- 通常不直接创建 Pod，而是通过 Deployment 等控制器管理</p>
+<p><strong>常见错误</strong>：
+- 直接创建裸 Pod → Pod 挂了不会自动重启
+- 未设置 resource requests/limits → 可能导致资源争抢</p>
+<h3 id="32-deployment-pod">3.2 Deployment — 声明式管理 Pod 副本</h3>
+<p>Deployment 管理一组 Pod 副本，提供滚动更新、回滚和扩缩容能力。</p>
+<div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deployment</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx-deployment</span>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx:1.25</span>
+<span class="w">        </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">containerPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+</code></pre></div>
+
+<p><strong>关键操作</strong>：</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># 创建</span>
+kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>deployment.yaml
+
+<span class="c1"># 扩缩容</span>
+kubectl<span class="w"> </span>scale<span class="w"> </span>deployment<span class="w"> </span>nginx-deployment<span class="w"> </span>--replicas<span class="o">=</span><span class="m">5</span>
+
+<span class="c1"># 滚动更新</span>
+kubectl<span class="w"> </span><span class="nb">set</span><span class="w"> </span>image<span class="w"> </span>deployment/nginx-deployment<span class="w"> </span><span class="nv">nginx</span><span class="o">=</span>nginx:1.26
+
+<span class="c1"># 查看更新状态</span>
+kubectl<span class="w"> </span>rollout<span class="w"> </span>status<span class="w"> </span>deployment/nginx-deployment
+
+<span class="c1"># 回滚</span>
+kubectl<span class="w"> </span>rollout<span class="w"> </span>undo<span class="w"> </span>deployment/nginx-deployment
+
+<span class="c1"># 查看历史</span>
+kubectl<span class="w"> </span>rollout<span class="w"> </span><span class="nb">history</span><span class="w"> </span>deployment/nginx-deployment
+</code></pre></div>
+
+<p><strong>常见错误</strong>：
+- 创建后修改 selector → selector 不可变，需要重建
+- 使用 <code>:latest</code> 标签 → 滚动更新可能无法检测到变化</p>
+<h3 id="33-service">3.3 Service — 稳定的网络端点</h3>
+<p>由于 Pod IP 是临时且会变化的，Service 提供了一个稳定的网络端点和负载均衡。</p>
+<div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Service</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx-service</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">protocol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TCP</span>
+<span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">    </span><span class="nt">targetPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ClusterIP</span><span class="w">  </span><span class="c1"># 默认，集群内部访问</span>
+</code></pre></div>
+
+<p><strong>Service 类型</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>说明</th>
+<th>典型场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ClusterIP</td>
+<td>集群内部 IP（默认）</td>
+<td>内部服务间通信</td>
+</tr>
+<tr>
+<td>NodePort</td>
+<td>在每个节点开放端口 (30000-32767)</td>
+<td>开发/测试</td>
+</tr>
+<tr>
+<td>LoadBalancer</td>
+<td>云厂商提供负载均衡器</td>
+<td>生产对外暴露</td>
+</tr>
+<tr>
+<td>ExternalName</td>
+<td>DNS CNAME 重定向</td>
+<td>外部服务引用</td>
+</tr>
+</tbody>
+</table>
+<p><strong>常见错误</strong>：
+- selector 与 Pod label 不匹配 → Service 找不到后端 Pod
+- NodePort 端口冲突 → 默认范围 30000-32767，可能与其他服务冲突</p>
+<h3 id="34-configmap-secret">3.4 ConfigMap 与 Secret — 配置管理</h3>
+<p>ConfigMap 存储非敏感配置，Secret 存储敏感数据（密码、密钥等）。</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># ConfigMap</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ConfigMap</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">app-config</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">APP_ENV</span><span class="p">:</span><span class="w"> </span><span class="s">"production"</span>
+<span class="w">  </span><span class="nt">LOG_LEVEL</span><span class="p">:</span><span class="w"> </span><span class="s">"info"</span>
+<span class="w">  </span><span class="nt">config.yaml</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">    </span><span class="no">database:</span>
+<span class="w">      </span><span class="no">host: db.example.com</span>
+<span class="w">      </span><span class="no">port: 5432</span>
+<span class="nn">---</span>
+<span class="c1"># Secret (base64 编码)</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Secret</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">db-secret</span>
+<span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Opaque</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cGFzc3dvcmQxMjM=</span><span class="w">  </span><span class="c1"># echo -n 'password123' | base64</span>
+<span class="nn">---</span>
+<span class="c1"># 在 Pod 中使用</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Pod</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">app-pod</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">app</span>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">myapp:1.0</span>
+<span class="w">    </span><span class="nt">envFrom</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">configMapRef</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">app-config</span>
+<span class="w">    </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DB_PASSWORD</span>
+<span class="w">      </span><span class="nt">valueFrom</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">secretKeyRef</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">db-secret</span>
+<span class="w">          </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">password</span>
+<span class="w">    </span><span class="nt">volumeMounts</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">config-volume</span>
+<span class="w">      </span><span class="nt">mountPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/etc/config</span>
+<span class="w">  </span><span class="nt">volumes</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">config-volume</span>
+<span class="w">    </span><span class="nt">configMap</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">app-config</span>
+</code></pre></div>
+
+<p><strong>常见错误</strong>：
+- Secret 数据未 base64 编码 → 创建失败
+- 更新 ConfigMap 后 Pod 未重启 → 需要重启 Pod 或使用热更新机制</p>
+<h3 id="35-namespace">3.5 Namespace — 资源隔离</h3>
+<p>Namespace 提供集群内资源隔离机制，适合多团队/多环境共享同一集群。</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># 创建 namespace</span>
+kubectl<span class="w"> </span>create<span class="w"> </span>namespace<span class="w"> </span>dev
+
+<span class="c1"># 在特定 namespace 中操作</span>
+kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>deployment.yaml<span class="w"> </span>-n<span class="w"> </span>dev
+
+<span class="c1"># 查看所有 namespace</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>namespaces
+
+<span class="c1"># 设置默认 namespace</span>
+kubectl<span class="w"> </span>config<span class="w"> </span>set-context<span class="w"> </span>--current<span class="w"> </span>--namespace<span class="o">=</span>dev
+</code></pre></div>
+
+<p><strong>常见错误</strong>：
+- 跨 namespace 引用 Service → 需要使用 <code>service-name.namespace.svc.cluster.local</code>
+- ResourceQuota 未设置 → 某个 namespace 可能耗尽集群资源</p>
+<h3 id="36">3.6 概念关系图</h3>
+<div class="highlight"><pre><span></span><code>Namespace (隔离环境)
+  └── Deployment (管理 Pod 副本，声明式)
+        └── ReplicaSet (维护副本数)
+              └── Pod (最小部署单元，含容器)
+                    └── Container (实际应用)
+  └── Service (稳定网络端点 → 负载均衡到 Pod)
+  └── ConfigMap/Secret (配置注入到 Pod)
+  └── PersistentVolume/PVC (持久化存储)
+  └── Ingress (HTTP 路由到 Service)
+</code></pre></div>
+
+<hr />
+<h2 id="level-4">Level 4: 实践模式</h2>
+<h3 id="kubernetes_4">目标：用 Kubernetes 构建真实应用</h3>
+<h3 id="41-web">4.1 模式一：部署无状态 Web 应用（从简到复杂）</h3>
+<p><strong>步骤 1：最简 Deployment</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># 03-patterns/01-web-app-deployment.yaml</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deployment</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-app</span>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx:1.25</span>
+<span class="w">        </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">containerPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+</code></pre></div>
+
+<p><strong>步骤 2：添加 Service 暴露</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># 03-patterns/01-web-app-service.yaml</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Service</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-app-service</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">protocol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TCP</span>
+<span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">    </span><span class="nt">targetPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NodePort</span>
+</code></pre></div>
+
+<p><strong>步骤 3：添加配置和健康检查</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># 03-patterns/01-web-app-full.yaml</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deployment</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-app</span>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">  </span><span class="nt">strategy</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RollingUpdate</span>
+<span class="w">    </span><span class="nt">rollingUpdate</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">maxSurge</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">maxUnavailable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx:1.25</span>
+<span class="w">        </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">containerPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">        </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">"128Mi"</span>
+<span class="w">            </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">"250m"</span>
+<span class="w">          </span><span class="nt">limits</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">"256Mi"</span>
+<span class="w">            </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">"500m"</span>
+<span class="w">        </span><span class="nt">livenessProbe</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">httpGet</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+<span class="w">            </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">          </span><span class="nt">initialDelaySeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">          </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">        </span><span class="nt">readinessProbe</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">httpGet</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+<span class="w">            </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">          </span><span class="nt">initialDelaySeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">          </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">        </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APP_ENV</span>
+<span class="w">          </span><span class="nt">valueFrom</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">configMapKeyRef</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-config</span>
+<span class="w">              </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APP_ENV</span>
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ConfigMap</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-config</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">APP_ENV</span><span class="p">:</span><span class="w"> </span><span class="s">"production"</span>
+<span class="w">  </span><span class="nt">LOG_LEVEL</span><span class="p">:</span><span class="w"> </span><span class="s">"info"</span>
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Service</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-app-service</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">protocol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TCP</span>
+<span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">    </span><span class="nt">targetPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NodePort</span>
+</code></pre></div>
+
+<h3 id="42-mysql-statefulset">4.2 模式二：部署有状态应用（MySQL StatefulSet）</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># 03-patterns/02-stateful-app.yaml</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Service</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql-headless</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3306</span>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
+<span class="w">  </span><span class="nt">clusterIP</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">None</span><span class="w">  </span><span class="c1"># Headless Service，StatefulSet 必需</span>
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">StatefulSet</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">serviceName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql-headless</span>
+<span class="w">  </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
+<span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql:8.0</span>
+<span class="w">        </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MYSQL_ROOT_PASSWORD</span>
+<span class="w">          </span><span class="nt">valueFrom</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">secretKeyRef</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql-secret</span>
+<span class="w">              </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root-password</span>
+<span class="w">        </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">containerPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3306</span>
+<span class="w">        </span><span class="nt">volumeMounts</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql-data</span>
+<span class="w">          </span><span class="nt">mountPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/var/lib/mysql</span>
+<span class="w">  </span><span class="nt">volumeClaimTemplates</span><span class="p">:</span><span class="w">  </span><span class="c1"># StatefulSet 特有：自动创建 PVC</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">metadata</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql-data</span>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">accessModes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"ReadWriteOnce"</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">storage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5Gi</span>
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Secret</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql-secret</span>
+<span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Opaque</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">root-password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bXlzcWxyb290MTIz</span><span class="w">  </span><span class="c1"># echo -n 'mysqlroot123' | base64</span>
+</code></pre></div>
+
+<h3 id="43-cronjob">4.3 模式三：CronJob 定时任务</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># 03-patterns/03-cronjob.yaml</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">batch/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CronJob</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data-cleanup</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="s">"0</span><span class="nv"> </span><span class="s">2</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*"</span><span class="w">  </span><span class="c1"># 每天凌晨 2 点</span>
+<span class="w">  </span><span class="nt">jobTemplate</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">template</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cleanup</span>
+<span class="w">            </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">busybox:1.28</span>
+<span class="w">            </span><span class="nt">command</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/bin/sh</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">-c</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echo "Starting cleanup at $(date)" &amp;&amp; echo "Done"</span>
+<span class="w">          </span><span class="nt">restartPolicy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">OnFailure</span>
+</code></pre></div>
+
+<h3 id="44-ingress-http">4.4 模式四：Ingress HTTP 路由</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># 03-patterns/04-ingress.yaml</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">networking.k8s.io/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Ingress</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-ingress</span>
+<span class="w">  </span><span class="nt">annotations</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">nginx.ingress.kubernetes.io/rewrite-target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">ingressClassName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="w">  </span><span class="nt">rules</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">app.example.com</span>
+<span class="w">    </span><span class="nt">http</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">paths</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+<span class="w">        </span><span class="nt">pathType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Prefix</span>
+<span class="w">        </span><span class="nt">backend</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">service</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-app-service</span>
+<span class="w">            </span><span class="nt">port</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">number</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/api</span>
+<span class="w">        </span><span class="nt">pathType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Prefix</span>
+<span class="w">        </span><span class="nt">backend</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">service</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api-service</span>
+<span class="w">            </span><span class="nt">port</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">number</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8080</span>
+</code></pre></div>
+
+<blockquote>
+<p>注意：使用 Ingress 前需要先安装 Ingress Controller，minikube 中可运行 <code>minikube addons enable ingress</code></p>
+</blockquote>
+<h3 id="45">4.5 常见生产实践</h3>
+<table>
+<thead>
+<tr>
+<th>实践</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>始终设置 resources</td>
+<td>防止资源争抢，Pod 被 OOMKilled</td>
+</tr>
+<tr>
+<td>始终设置健康检查</td>
+<td>livenessProbe + readinessProbe</td>
+</tr>
+<tr>
+<td>不要使用 :latest 标签</td>
+<td>避免不可预测的镜像版本变化</td>
+</tr>
+<tr>
+<td>使用 Namespace 隔离</td>
+<td>dev/staging/prod 分离</td>
+</tr>
+<tr>
+<td>配置 NetworkPolicy</td>
+<td>默认拒绝，显式允许</td>
+</tr>
+<tr>
+<td>设置 PodDisruptionBudget</td>
+<td>维护期间保证最小可用副本数</td>
+</tr>
+<tr>
+<td>配置 HPA 自动扩缩</td>
+<td>根据负载自动调整副本数</td>
+</tr>
+<tr>
+<td>Secret 加密存储</td>
+<td>启用 EncryptionConfiguration</td>
+</tr>
+</tbody>
+</table>
+<h3 id="46">4.6 调试常见问题</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># 三步调试法</span>
+kubectl<span class="w"> </span>describe<span class="w"> </span>pod<span class="w"> </span>&lt;name&gt;<span class="w">     </span><span class="c1"># 查看事件和状态</span>
+kubectl<span class="w"> </span>logs<span class="w"> </span>&lt;name&gt;<span class="w">              </span><span class="c1"># 查看容器日志</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>events<span class="w"> </span>--sort-by<span class="o">=</span><span class="s1">'.lastTimestamp'</span><span class="w">  </span><span class="c1"># 查看集群事件</span>
+
+<span class="c1"># 进入容器排查</span>
+kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-it<span class="w"> </span>&lt;name&gt;<span class="w"> </span>--<span class="w"> </span>/bin/sh
+
+<span class="c1"># 端口转发本地调试</span>
+kubectl<span class="w"> </span>port-forward<span class="w"> </span>pod/&lt;name&gt;<span class="w"> </span><span class="m">8080</span>:80
+
+<span class="c1"># 查看 Pod 在哪个节点</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </span>-o<span class="w"> </span>wide
+
+<span class="c1"># 查看 Pod YAML（排查配置问题）</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </span>&lt;name&gt;<span class="w"> </span>-o<span class="w"> </span>yaml
+</code></pre></div>
+
+<hr />
+<h2 id="level-5">Level 5: 进阶方向</h2>
+<h3 id="_1">目标：知道接下来去哪里深入学习</h3>
+<h3 id="51">5.1 进阶主题</h3>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>说明</th>
+<th>推荐资源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Helm 包管理</td>
+<td>K8s 的包管理器，模板化部署</td>
+<td><a href="https://helm.sh">https://helm.sh</a></td>
+</tr>
+<tr>
+<td>Operators</td>
+<td>自定义控制器，管理复杂有状态应用</td>
+<td><a href="https://operatorhub.io">https://operatorhub.io</a></td>
+</tr>
+<tr>
+<td>Service Mesh</td>
+<td>Istio/Linkerd，流量管理和可观测性</td>
+<td><a href="https://istio.io">https://istio.io</a></td>
+</tr>
+<tr>
+<td>GitOps</td>
+<td>ArgoCD/Flux，Git 驱动的持续部署</td>
+<td><a href="https://argoproj.github.io">https://argoproj.github.io</a></td>
+</tr>
+<tr>
+<td>安全加固</td>
+<td>RBAC 深入、Pod Security Standards、OPA Gatekeeper</td>
+<td><a href="https://kubernetes.io/docs/concepts/security/">https://kubernetes.io/docs/concepts/security/</a></td>
+</tr>
+<tr>
+<td>多集群管理</td>
+<td>KubeFed, Cluster API</td>
+<td><a href="https://cluster-api.sigs.k8s.io">https://cluster-api.sigs.k8s.io</a></td>
+</tr>
+<tr>
+<td>可观测性</td>
+<td>Prometheus + Grafana + Jaeger</td>
+<td><a href="https://prometheus.io">https://prometheus.io</a></td>
+</tr>
+<tr>
+<td>持续集成</td>
+<td>CI/CD with Kubernetes (Tekton, ArgoCD)</td>
+<td><a href="https://tekton.dev">https://tekton.dev</a></td>
+</tr>
+<tr>
+<td>存储深入</td>
+<td>CSI 驱动、动态存储供给</td>
+<td><a href="https://kubernetes-csi.github.io/docs">https://kubernetes-csi.github.io/docs</a></td>
+</tr>
+<tr>
+<td>网络深入</td>
+<td>CNI 插件 (Calico, Cilium)、NetworkPolicy</td>
+<td><a href="https://docs.projectcalico.org">https://docs.projectcalico.org</a></td>
+</tr>
+<tr>
+<td>API 扩展</td>
+<td>CustomResourceDefinition (CRD)、Admission Webhook</td>
+<td>官方文档 concepts/extend-kubernetes/</td>
+</tr>
+</tbody>
+</table>
+<h3 id="52">5.2 认证路径</h3>
+<ol>
+<li><strong>CKA (Certified Kubernetes Administrator)</strong> — 管理员认证，侧重集群运维</li>
+<li>备考：KodeKloud CKA 课程 + Killercoda 练习场景</li>
+<li>
+<p>考试：在线实操，2 小时，约 15-20 道实操题</p>
+</li>
+<li>
+<p><strong>CKAD (Certified Kubernetes Application Developer)</strong> — 开发者认证，侧重应用部署</p>
+</li>
+<li>
+<p>侧重：Deployment, Service, ConfigMap, Job, CronJob 等</p>
+</li>
+<li>
+<p><strong>CKS (Certified Kubernetes Security Specialist)</strong> — 安全专家认证</p>
+</li>
+<li>前置：需先获得 CKA</li>
+<li>侧重：集群安全、RBAC、Pod 安全、审计</li>
+</ol>
+<h3 id="53">5.3 架构深入理解</h3>
+<p>了解 K8s 内部架构有助于高级运维和故障排查：</p>
+<p><strong>控制平面组件</strong>：
+- <strong>kube-apiserver</strong>：所有操作的入口，REST API 前端
+- <strong>etcd</strong>：分布式键值存储，集群状态的唯一真实来源
+- <strong>kube-scheduler</strong>：将 Pod 调度到合适的节点
+- <strong>kube-controller-manager</strong>：运行所有控制器（部署、副本、节点等）
+- <strong>cloud-controller-manager</strong>：云厂商特定的控制循环</p>
+<p><strong>节点组件</strong>：
+- <strong>kubelet</strong>：每个节点上的代理，管理 Pod 生命周期
+- <strong>kube-proxy</strong>：维护网络规则，实现 Service 负载均衡</p>
+<p><strong>数据流</strong>：</p>
+<div class="highlight"><pre><span></span><code>用户 → kubectl → kube-apiserver → 验证 → 写入 etcd
+  → controller-manager 监听 → 创建 Pod
+  → scheduler 调度 → 分配到节点
+  → kubelet 监听 → 调用 CRI 启动容器
+  → kube-proxy 配置网络规则
+</code></pre></div>
+
+<h3 id="54">5.4 社区参与</h3>
+<ul>
+<li>加入 CNCF Slack (slack.k8s.io)，关注 #kubernetes-novice 频道</li>
+<li>参加本地 Kubernetes Meetup</li>
+<li>阅读 Kubernetes 官方博客 (kubernetes.io/blog/)</li>
+<li>参与 SIG (Special Interest Group) 讨论</li>
+<li>贡献文档或代码到 kubernetes/kubernetes 仓库</li>
+</ul>
+<h3 id="55">5.5 实战练习项目</h3>
+<p><strong>项目 1：微服务博客平台</strong>（中级）
+- 部署 WordPress + MySQL 使用 StatefulSet
+- 配置 Ingress 对外暴露
+- 设置 PersistentVolume 持久化
+- 配置 Secret 管理数据库密码</p>
+<p><strong>项目 2：自动扩缩的 API 服务</strong>（中高级）
+- 部署多副本 API 服务
+- 配置 HPA 根据 CPU 自动扩缩
+- 添加 readiness/liveness 探针
+- 使用 ConfigMap 管理配置</p>
+<p><strong>项目 3：CI/CD 流水线</strong>（高级）
+- 使用 Tekton 或 ArgoCD 搭建 GitOps
+- 实现代码提交自动部署
+- 配置蓝绿/金丝雀发布策略
+- 添加 Prometheus 监控</p>
+<h3 id="56">5.6 持续学习建议</h3>
+<ol>
+<li><strong>每天练习</strong>：在 Killercoda 上做 1-2 个场景</li>
+<li><strong>读源码</strong>：从 cmd/ 和 pkg/ 目录理解组件实现</li>
+<li><strong>跟社区</strong>：订阅 K8s 官方博客，关注 r/kubernetes</li>
+<li><strong>做项目</strong>：把一个真实应用完整部署到 K8s</li>
+<li><strong>考认证</strong>：CKA 是最有价值的 DevOps 认证之一</li>
+<li><strong>参加 KubeCon</strong>：年度最重要的 K8s 会议</li>
+</ol></section>
+    <section id="panel-resources" class="panel"><h1 id="kubernetes">Kubernetes 学习资源汇总</h1>
+<h2 id="_1">官方文档</h2>
+<table>
+<thead>
+<tr>
+<th>资源</th>
+<th>链接</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kubernetes 官方文档</td>
+<td><a href="https://kubernetes.io/docs/">https://kubernetes.io/docs/</a></td>
+<td>完整官方文档，当前版本 v1.33</td>
+</tr>
+<tr>
+<td>概览与动机</td>
+<td><a href="https://kubernetes.io/docs/concepts/overview/">https://kubernetes.io/docs/concepts/overview/</a></td>
+<td>K8s 是什么、为什么需要它</td>
+</tr>
+<tr>
+<td>安装指南</td>
+<td><a href="https://kubernetes.io/docs/setup/">https://kubernetes.io/docs/setup/</a></td>
+<td>生产环境和本地环境安装</td>
+</tr>
+<tr>
+<td>学习环境</td>
+<td><a href="https://kubernetes.io/docs/setup/learning-environment/">https://kubernetes.io/docs/setup/learning-environment/</a></td>
+<td>本地学习环境搭建</td>
+</tr>
+<tr>
+<td>Pod 概念</td>
+<td><a href="https://kubernetes.io/docs/concepts/workloads/pods/">https://kubernetes.io/docs/concepts/workloads/pods/</a></td>
+<td>Pod 详解</td>
+</tr>
+<tr>
+<td>Deployment 概念</td>
+<td><a href="https://kubernetes.io/docs/concepts/workloads/controllers/deployment/">https://kubernetes.io/docs/concepts/workloads/controllers/deployment/</a></td>
+<td>Deployment 详解</td>
+</tr>
+<tr>
+<td>Service 概念</td>
+<td><a href="https://kubernetes.io/docs/concepts/services-networking/service/">https://kubernetes.io/docs/concepts/services-networking/service/</a></td>
+<td>Service 详解</td>
+</tr>
+<tr>
+<td>基础教程</td>
+<td><a href="https://kubernetes.io/docs/tutorials/kubernetes-basics/">https://kubernetes.io/docs/tutorials/kubernetes-basics/</a></td>
+<td>6 模块交互式教程</td>
+</tr>
+<tr>
+<td>API 参考</td>
+<td><a href="https://kubernetes.io/docs/reference/kubernetes-api/">https://kubernetes.io/docs/reference/kubernetes-api/</a></td>
+<td>完整 API 参考</td>
+</tr>
+<tr>
+<td>kubectl 命令参考</td>
+<td><a href="https://kubernetes.io/docs/reference/kubectl/">https://kubernetes.io/docs/reference/kubectl/</a></td>
+<td>kubectl 完整命令</td>
+</tr>
+<tr>
+<td>minikube 官网</td>
+<td><a href="https://minikube.sigs.k8s.io/docs/start/">https://minikube.sigs.k8s.io/docs/start/</a></td>
+<td>minikube 快速开始</td>
+</tr>
+<tr>
+<td>kind 官网</td>
+<td><a href="https://kind.sigs.k8s.io/docs/user/quick-start/">https://kind.sigs.k8s.io/docs/user/quick-start/</a></td>
+<td>kind 快速开始</td>
+</tr>
+</tbody>
+</table>
+<h2 id="github">GitHub 仓库</h2>
+<table>
+<thead>
+<tr>
+<th>资源</th>
+<th>链接</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kubernetes 主仓库</td>
+<td><a href="https://github.com/kubernetes/kubernetes">https://github.com/kubernetes/kubernetes</a></td>
+<td>~124k stars, Apache 2.0 许可, Go 语言</td>
+</tr>
+<tr>
+<td>client-go</td>
+<td><a href="https://github.com/kubernetes/client-go">https://github.com/kubernetes/client-go</a></td>
+<td>官方 Go 客户端库</td>
+</tr>
+<tr>
+<td>kubectl 源码</td>
+<td><a href="https://github.com/kubernetes/kubernetes/tree/master/cmd/kubectl">https://github.com/kubernetes/kubernetes/tree/master/cmd/kubectl</a></td>
+<td>kubectl 实现</td>
+</tr>
+<tr>
+<td>示例清单</td>
+<td><a href="https://github.com/kubernetes/kubernetes/tree/master/test/e2e/testing-manifests">https://github.com/kubernetes/kubernetes/tree/master/test/e2e/testing-manifests</a></td>
+<td>测试用示例 YAML</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_2">视频资源</h2>
+<table>
+<thead>
+<tr>
+<th>标题</th>
+<th>频道</th>
+<th>时长</th>
+<th>链接</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kubernetes Tutorial for Beginners [FULL COURSE]</td>
+<td>TechWorld with Nana</td>
+<td>~4 小时</td>
+<td><a href="https://www.youtube.com/c/TechWorldwithNana">https://www.youtube.com/c/TechWorldwithNana</a></td>
+</tr>
+<tr>
+<td>Kubernetes Crash Course for Absolute Beginners</td>
+<td>TechWorld with Nana</td>
+<td>~1 小时</td>
+<td><a href="https://www.youtube.com/c/TechWorldwithNana">https://www.youtube.com/c/TechWorldwithNana</a></td>
+</tr>
+<tr>
+<td>Kubernetes Explained in 15 Minutes</td>
+<td>TechWorld with Nana</td>
+<td>~15 分钟</td>
+<td><a href="https://www.youtube.com/c/TechWorldwithNana">https://www.youtube.com/c/TechWorldwithNana</a></td>
+</tr>
+<tr>
+<td>KubeCon + CloudNativeCon 演讲</td>
+<td>CNCF YouTube</td>
+<td>15-40 分钟/场</td>
+<td><a href="https://www.youtube.com/c/cloudnativefdn">https://www.youtube.com/c/cloudnativefdn</a></td>
+</tr>
+<tr>
+<td>Kubernetes Monthly Office Hours</td>
+<td>Kubernetes 官方</td>
+<td>~1 小时</td>
+<td><a href="https://www.youtube.com/@kubernetescommunity">https://www.youtube.com/@kubernetescommunity</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="_3">在线实践平台</h2>
+<table>
+<thead>
+<tr>
+<th>平台</th>
+<th>费用</th>
+<th>特点</th>
+<th>链接</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Killercoda</td>
+<td>免费</td>
+<td>浏览器内交互式场景，支持 CKA/CKAD 练习</td>
+<td><a href="https://killercoda.com">https://killercoda.com</a></td>
+</tr>
+<tr>
+<td>KodeKloud</td>
+<td>部分免费</td>
+<td>课程+集成实验室，认证备考</td>
+<td><a href="https://kodekloud.com">https://kodekloud.com</a></td>
+</tr>
+<tr>
+<td>Play with Kubernetes</td>
+<td>免费</td>
+<td>浏览器内多节点集群，有时间限制</td>
+<td><a href="https://labs.play-with-k8s.com">https://labs.play-with-k8s.com</a></td>
+</tr>
+<tr>
+<td>KodeKloud Playgrounds</td>
+<td>免费</td>
+<td>即时 K8s 环境，无需注册课程</td>
+<td><a href="https://kodekloud.com/public-playgrounds">https://kodekloud.com/public-playgrounds</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="_4">本地工具</h2>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>说明</th>
+<th>链接</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>minikube</td>
+<td>本地单节点集群，支持插件</td>
+<td><a href="https://minikube.sigs.k8s.io">https://minikube.sigs.k8s.io</a></td>
+</tr>
+<tr>
+<td>kind</td>
+<td>Docker 容器中运行 K8s，CI 友好</td>
+<td><a href="https://kind.sigs.k8s.io">https://kind.sigs.k8s.io</a></td>
+</tr>
+<tr>
+<td>k3s/k3d</td>
+<td>轻量级 K8s，&lt;100MB 单二进制</td>
+<td><a href="https://k3s.io">https://k3s.io</a></td>
+</tr>
+<tr>
+<td>Docker Desktop</td>
+<td>内置 K8s 支持</td>
+<td><a href="https://www.docker.com/products/docker-desktop">https://www.docker.com/products/docker-desktop</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="_5">社区渠道</h2>
+<table>
+<thead>
+<tr>
+<th>渠道</th>
+<th>链接</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CNCF/K8s Slack</td>
+<td><a href="https://slack.k8s.io">https://slack.k8s.io</a></td>
+<td>官方 Slack，含 #kubernetes-novice 等频道</td>
+</tr>
+<tr>
+<td>Reddit r/kubernetes</td>
+<td><a href="https://reddit.com/r/kubernetes">https://reddit.com/r/kubernetes</a></td>
+<td>非常活跃，生产经验分享</td>
+</tr>
+<tr>
+<td>Reddit r/devops</td>
+<td><a href="https://reddit.com/r/devops">https://reddit.com/r/devops</a></td>
+<td>更广泛的 DevOps 社区</td>
+</tr>
+<tr>
+<td>Kubernetes 论坛</td>
+<td><a href="https://discuss.kubernetes.io">https://discuss.kubernetes.io</a></td>
+<td>官方技术讨论论坛</td>
+</tr>
+<tr>
+<td>CNCF 社区</td>
+<td><a href="https://www.cncf.io/community/">https://www.cncf.io/community/</a></td>
+<td>云原生社区总入口</td>
+</tr>
+<tr>
+<td>KubeCon 大会</td>
+<td><a href="https://events.linuxfoundation.org/">https://events.linuxfoundation.org/</a></td>
+<td>年度旗舰会议（欧洲/北美/亚洲）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_6">认证资源</h2>
+<table>
+<thead>
+<tr>
+<th>认证</th>
+<th>说明</th>
+<th>链接</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CKA (Certified Kubernetes Administrator)</td>
+<td>K8s 管理员认证</td>
+<td><a href="https://www.cncf.io/training/certification/cka/">https://www.cncf.io/training/certification/cka/</a></td>
+</tr>
+<tr>
+<td>CKAD (Certified Kubernetes Application Developer)</td>
+<td>K8s 应用开发者认证</td>
+<td><a href="https://www.cncf.io/training/certification/ckad/">https://www.cncf.io/training/certification/ckad/</a></td>
+</tr>
+<tr>
+<td>CKS (Certified Kubernetes Security Specialist)</td>
+<td>K8s 安全专家认证</td>
+<td><a href="https://www.cncf.io/training/certification/cks/">https://www.cncf.io/training/certification/cks/</a></td>
+</tr>
+<tr>
+<td>KodeKloud CKA 课程</td>
+<td>最受欢迎的 CKA 备考课程</td>
+<td><a href="https://kodekloud.com">https://kodekloud.com</a></td>
+</tr>
+<tr>
+<td>Killercoda CKA 场景</td>
+<td>免费浏览器端考试式练习</td>
+<td><a href="https://killercoda.com">https://killercoda.com</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="_7">对比阅读</h2>
+<table>
+<thead>
+<tr>
+<th>文章主题</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kubernetes vs Docker Swarm vs Nomad</td>
+<td>K8s 功能最丰富但复杂；Swarm 最简单但功能少；Nomad 居中且支持非容器工作负载</td>
+</tr>
+<tr>
+<td>生产环境选择</td>
+<td>托管 K8s（EKS/GKE/AKS）大幅降低运维负担，是多数团队的务实选择</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_8">真实案例</h2>
+<table>
+<thead>
+<tr>
+<th>公司</th>
+<th>规模</th>
+<th>收益</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Spotify</td>
+<td>1,600+ 生产服务</td>
+<td>标准化部署管线，跨团队资源高效利用</td>
+</tr>
+<tr>
+<td>Airbnb</td>
+<td>大规模微服务</td>
+<td>降低部署复杂度，开发时间减少 50%</td>
+</tr>
+<tr>
+<td>Netflix</td>
+<td>每日数百 TB 数据</td>
+<td>自愈基础设施，按需自动扩缩</td>
+</tr>
+<tr>
+<td>Pinterest</td>
+<td>大规模微服务</td>
+<td>平滑扩展，Service Mesh 流量管理</td>
+</tr>
+<tr>
+<td>Uber</td>
+<td>全球微服务架构</td>
+<td>地理分布，快速服务部署</td>
+</tr>
+</tbody>
+</table></section>
+    <section id="panel-code" class="panel"><div class="code-layout"><nav class="code-file-nav"><details class="code-dir" open><summary><i class="dir-arrow" aria-hidden="true"></i>01-hello-world</summary><div class="dir-children"><button class="code-file-btn" data-file="cf0" title="01-hello-world/nginx-pod.yaml">nginx-pod.yaml<i class="lang-chip">yaml</i></button></div></details><details class="code-dir" open><summary><i class="dir-arrow" aria-hidden="true"></i>02-core-concepts</summary><div class="dir-children"><button class="code-file-btn" data-file="cf1" title="02-core-concepts/configmap-secret.yaml">configmap-secret.yaml<i class="lang-chip">yaml</i></button><button class="code-file-btn" data-file="cf2" title="02-core-concepts/deployment.yaml">deployment.yaml<i class="lang-chip">yaml</i></button><button class="code-file-btn" data-file="cf3" title="02-core-concepts/service.yaml">service.yaml<i class="lang-chip">yaml</i></button></div></details><details class="code-dir" open><summary><i class="dir-arrow" aria-hidden="true"></i>03-patterns</summary><div class="dir-children"><button class="code-file-btn" data-file="cf4" title="03-patterns/cronjob.yaml">cronjob.yaml<i class="lang-chip">yaml</i></button><button class="code-file-btn" data-file="cf5" title="03-patterns/ingress.yaml">ingress.yaml<i class="lang-chip">yaml</i></button><button class="code-file-btn" data-file="cf6" title="03-patterns/stateful-app.yaml">stateful-app.yaml<i class="lang-chip">yaml</i></button><button class="code-file-btn" data-file="cf7" title="03-patterns/web-app-full.yaml">web-app-full.yaml<i class="lang-chip">yaml</i></button></div></details></nav><div class="code-views"><div class="code-viewer" id="cf0"><div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span>
+<span class="normal">15</span>
+<span class="normal">16</span>
+<span class="normal">17</span>
+<span class="normal">18</span>
+<span class="normal">19</span>
+<span class="normal">20</span>
+<span class="normal">21</span>
+<span class="normal">22</span>
+<span class="normal">23</span>
+<span class="normal">24</span>
+<span class="normal">25</span>
+<span class="normal">26</span>
+<span class="normal">27</span>
+<span class="normal">28</span>
+<span class="normal">29</span></pre></div></td><td class="code"><div><pre><span></span><span class="c1"># Level 2 - Hello World 示例</span>
+<span class="c1"># 最简单的 Kubernetes Pod：运行一个 NGINX 容器</span>
+<span class="c1"># </span>
+<span class="c1"># 使用方法：</span>
+<span class="c1">#   kubectl apply -f nginx-pod.yaml</span>
+<span class="c1">#   kubectl get pods</span>
+<span class="c1">#   kubectl port-forward pod/nginx-pod 8080:80</span>
+<span class="c1">#   # 然后访问 http://localhost:8080</span>
+<span class="c1">#   kubectl delete -f nginx-pod.yaml</span>
+
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Pod</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx-pod</span>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx:1.25</span>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">containerPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">    </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">"64Mi"</span>
+<span class="w">        </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">"250m"</span>
+<span class="w">      </span><span class="nt">limits</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">"128Mi"</span>
+<span class="w">        </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">"500m"</span>
+</pre></div></td></tr></table></div>
+</div><div class="code-viewer" id="cf1"><div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span>
+<span class="normal">15</span>
+<span class="normal">16</span>
+<span class="normal">17</span>
+<span class="normal">18</span>
+<span class="normal">19</span>
+<span class="normal">20</span>
+<span class="normal">21</span>
+<span class="normal">22</span>
+<span class="normal">23</span>
+<span class="normal">24</span>
+<span class="normal">25</span>
+<span class="normal">26</span>
+<span class="normal">27</span>
+<span class="normal">28</span>
+<span class="normal">29</span>
+<span class="normal">30</span>
+<span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span>
+<span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span></pre></div></td><td class="code"><div><pre><span></span><span class="c1"># Level 3 - 核心概念示例：ConfigMap 和 Secret</span>
+<span class="c1"># ConfigMap 存储非敏感配置，Secret 存储敏感数据</span>
+<span class="c1">#</span>
+<span class="c1"># 使用方法：</span>
+<span class="c1">#   # 先生成 Secret 的 base64 值</span>
+<span class="c1">#   echo -n 'password123' | base64  # 输出: cGFzc3dvcmQxMjM=</span>
+<span class="c1">#   # 创建</span>
+<span class="c1">#   kubectl apply -f configmap-secret.yaml</span>
+<span class="c1">#   kubectl get configmaps,secrets</span>
+<span class="c1">#   # 清理</span>
+<span class="c1">#   kubectl delete -f configmap-secret.yaml</span>
+
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ConfigMap</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">app-config</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># 键值对形式</span>
+<span class="w">  </span><span class="nt">APP_ENV</span><span class="p">:</span><span class="w"> </span><span class="s">"production"</span>
+<span class="w">  </span><span class="nt">LOG_LEVEL</span><span class="p">:</span><span class="w"> </span><span class="s">"info"</span>
+<span class="w">  </span><span class="nt">MAX_CONNECTIONS</span><span class="p">:</span><span class="w"> </span><span class="s">"100"</span>
+<span class="w">  </span><span class="c1"># 文件形式</span>
+<span class="w">  </span><span class="nt">app.properties</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">    </span><span class="no">server.port=8080</span>
+<span class="w">    </span><span class="no">cache.enabled=true</span>
+<span class="w">    </span><span class="no">cache.ttl=300</span>
+
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Secret</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">app-secret</span>
+<span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Opaque</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># 值需要 base64 编码</span>
+<span class="w">  </span><span class="c1"># echo -n 'password123' | base64 → cGFzc3dvcmQxMjM=</span>
+<span class="w">  </span><span class="nt">db-password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cGFzc3dvcmQxMjM=</span>
+<span class="w">  </span><span class="nt">api-key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bXlzZWNyZXRrZXk=</span>
+</pre></div></td></tr></table></div>
+</div><div class="code-viewer" id="cf2"><div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span>
+<span class="normal">15</span>
+<span class="normal">16</span>
+<span class="normal">17</span>
+<span class="normal">18</span>
+<span class="normal">19</span>
+<span class="normal">20</span>
+<span class="normal">21</span>
+<span class="normal">22</span>
+<span class="normal">23</span>
+<span class="normal">24</span>
+<span class="normal">25</span>
+<span class="normal">26</span>
+<span class="normal">27</span>
+<span class="normal">28</span>
+<span class="normal">29</span>
+<span class="normal">30</span>
+<span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span>
+<span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
+<span class="normal">41</span>
+<span class="normal">42</span>
+<span class="normal">43</span>
+<span class="normal">44</span>
+<span class="normal">45</span>
+<span class="normal">46</span>
+<span class="normal">47</span>
+<span class="normal">48</span>
+<span class="normal">49</span>
+<span class="normal">50</span>
+<span class="normal">51</span>
+<span class="normal">52</span>
+<span class="normal">53</span>
+<span class="normal">54</span>
+<span class="normal">55</span>
+<span class="normal">56</span>
+<span class="normal">57</span></pre></div></td><td class="code"><div><pre><span></span><span class="c1"># Level 3 - 核心概念示例：Deployment</span>
+<span class="c1"># Deployment 管理 Pod 副本，提供滚动更新和回滚能力</span>
+<span class="c1">#</span>
+<span class="c1"># 使用方法：</span>
+<span class="c1">#   kubectl apply -f deployment.yaml</span>
+<span class="c1">#   kubectl get deployments,pods</span>
+<span class="c1">#   # 扩缩容</span>
+<span class="c1">#   kubectl scale deployment nginx-deployment --replicas=5</span>
+<span class="c1">#   # 滚动更新</span>
+<span class="c1">#   kubectl set image deployment/nginx-deployment nginx=nginx:1.26</span>
+<span class="c1">#   # 查看更新状态</span>
+<span class="c1">#   kubectl rollout status deployment/nginx-deployment</span>
+<span class="c1">#   # 回滚</span>
+<span class="c1">#   kubectl rollout undo deployment/nginx-deployment</span>
+<span class="c1">#   # 清理</span>
+<span class="c1">#   kubectl delete -f deployment.yaml</span>
+
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deployment</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx-deployment</span>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx:1.25</span>
+<span class="w">        </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">containerPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">        </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">"128Mi"</span>
+<span class="w">            </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">"250m"</span>
+<span class="w">          </span><span class="nt">limits</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">"256Mi"</span>
+<span class="w">            </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">"500m"</span>
+<span class="w">        </span><span class="nt">livenessProbe</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">httpGet</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+<span class="w">            </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">          </span><span class="nt">initialDelaySeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">          </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">        </span><span class="nt">readinessProbe</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">httpGet</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+<span class="w">            </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">          </span><span class="nt">initialDelaySeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">          </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+</pre></div></td></tr></table></div>
+</div><div class="code-viewer" id="cf3"><div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span>
+<span class="normal">15</span>
+<span class="normal">16</span>
+<span class="normal">17</span>
+<span class="normal">18</span>
+<span class="normal">19</span>
+<span class="normal">20</span>
+<span class="normal">21</span>
+<span class="normal">22</span>
+<span class="normal">23</span>
+<span class="normal">24</span>
+<span class="normal">25</span></pre></div></td><td class="code"><div><pre><span></span><span class="c1"># Level 3 - 核心概念示例：Service</span>
+<span class="c1"># Service 为一组 Pod 提供稳定的网络端点和负载均衡</span>
+<span class="c1">#</span>
+<span class="c1"># 使用方法（先确保 deployment.yaml 中的 Pod 已运行）：</span>
+<span class="c1">#   kubectl apply -f service.yaml</span>
+<span class="c1">#   kubectl get services</span>
+<span class="c1">#   # 在 minikube 中访问</span>
+<span class="c1">#   minikube service nginx-service</span>
+<span class="c1">#   # 或端口转发</span>
+<span class="c1">#   kubectl port-forward service/nginx-service 8080:80</span>
+<span class="c1">#   # 清理</span>
+<span class="c1">#   kubectl delete -f service.yaml</span>
+
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Service</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx-service</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span><span class="w">  </span><span class="c1"># 匹配 Pod 的 label</span>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">protocol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TCP</span>
+<span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span><span class="w">         </span><span class="c1"># Service 端口</span>
+<span class="w">    </span><span class="nt">targetPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span><span class="w">   </span><span class="c1"># Pod 容器端口</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NodePort</span><span class="w">     </span><span class="c1"># 在每个节点开放端口 (30000-32767)</span>
+</pre></div></td></tr></table></div>
+</div><div class="code-viewer" id="cf4"><div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span>
+<span class="normal">15</span>
+<span class="normal">16</span>
+<span class="normal">17</span>
+<span class="normal">18</span>
+<span class="normal">19</span>
+<span class="normal">20</span>
+<span class="normal">21</span>
+<span class="normal">22</span>
+<span class="normal">23</span>
+<span class="normal">24</span>
+<span class="normal">25</span>
+<span class="normal">26</span>
+<span class="normal">27</span>
+<span class="normal">28</span>
+<span class="normal">29</span>
+<span class="normal">30</span>
+<span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span>
+<span class="normal">37</span></pre></div></td><td class="code"><div><pre><span></span><span class="c1"># Level 4 - 实践模式：CronJob 定时任务</span>
+<span class="c1"># 按计划定期运行任务</span>
+<span class="c1">#</span>
+<span class="c1"># 使用方法：</span>
+<span class="c1">#   kubectl apply -f cronjob.yaml</span>
+<span class="c1">#   kubectl get cronjobs,jobs,pods</span>
+<span class="c1">#   # 手动触发一次</span>
+<span class="c1">#   kubectl create job --from=cronjob/data-cleanup manual-cleanup</span>
+<span class="c1">#   # 查看 CronJob 历史</span>
+<span class="c1">#   kubectl get jobs</span>
+<span class="c1">#   # 清理</span>
+<span class="c1">#   kubectl delete -f cronjob.yaml</span>
+
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">batch/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CronJob</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data-cleanup</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="s">"0</span><span class="nv"> </span><span class="s">2</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*"</span><span class="w">  </span><span class="c1"># 每天 2:00 AM 运行</span>
+<span class="w">  </span><span class="nt">successfulJobsHistoryLimit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">  </span><span class="nt">failedJobsHistoryLimit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">jobTemplate</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">template</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cleanup</span>
+<span class="w">            </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">busybox:1.28</span>
+<span class="w">            </span><span class="nt">command</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/bin/sh</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">-c</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">              </span><span class="no">echo "=== Cleanup started at $(date) ==="</span>
+<span class="w">              </span><span class="no">echo "Cleaning up expired data..."</span>
+<span class="w">              </span><span class="no">echo "Removing temp files..."</span>
+<span class="w">              </span><span class="no">echo "=== Cleanup completed at $(date) ==="</span>
+<span class="w">          </span><span class="nt">restartPolicy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">OnFailure</span>
+</pre></div></td></tr></table></div>
+</div><div class="code-viewer" id="cf5"><div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span>
+<span class="normal">15</span>
+<span class="normal">16</span>
+<span class="normal">17</span>
+<span class="normal">18</span>
+<span class="normal">19</span>
+<span class="normal">20</span>
+<span class="normal">21</span>
+<span class="normal">22</span>
+<span class="normal">23</span>
+<span class="normal">24</span>
+<span class="normal">25</span>
+<span class="normal">26</span>
+<span class="normal">27</span>
+<span class="normal">28</span>
+<span class="normal">29</span>
+<span class="normal">30</span>
+<span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span>
+<span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
+<span class="normal">41</span>
+<span class="normal">42</span>
+<span class="normal">43</span>
+<span class="normal">44</span>
+<span class="normal">45</span>
+<span class="normal">46</span></pre></div></td><td class="code"><div><pre><span></span><span class="c1"># Level 4 - 实践模式：Ingress HTTP 路由</span>
+<span class="c1"># 通过域名和路径将外部流量路由到不同 Service</span>
+<span class="c1">#</span>
+<span class="c1"># 前置条件（minikube）：</span>
+<span class="c1">#   minikube addons enable ingress</span>
+<span class="c1">#</span>
+<span class="c1"># 使用方法：</span>
+<span class="c1">#   kubectl apply -f ingress.yaml</span>
+<span class="c1">#   kubectl get ingress</span>
+<span class="c1">#   # 在 minikube 中获取 Ingress 地址</span>
+<span class="c1">#   minikube ip</span>
+<span class="c1">#   # 将域名解析到该 IP（或添加 /etc/hosts）</span>
+<span class="c1">#   # echo "$(minikube ip) app.example.com" | sudo tee -a /etc/hosts</span>
+<span class="c1">#   # 访问</span>
+<span class="c1">#   curl http://app.example.com/</span>
+<span class="c1">#   curl http://app.example.com/api</span>
+<span class="c1">#   # 清理</span>
+<span class="c1">#   kubectl delete -f ingress.yaml</span>
+
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">networking.k8s.io/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Ingress</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-ingress</span>
+<span class="w">  </span><span class="nt">annotations</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">nginx.ingress.kubernetes.io/rewrite-target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">ingressClassName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="w">  </span><span class="nt">rules</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">app.example.com</span>
+<span class="w">    </span><span class="nt">http</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">paths</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+<span class="w">        </span><span class="nt">pathType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Prefix</span>
+<span class="w">        </span><span class="nt">backend</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">service</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-app-service</span><span class="w">  </span><span class="c1"># 需要先部署 web-app</span>
+<span class="w">            </span><span class="nt">port</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">number</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/api</span>
+<span class="w">        </span><span class="nt">pathType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Prefix</span>
+<span class="w">        </span><span class="nt">backend</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">service</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">api-service</span><span class="w">  </span><span class="c1"># 需要先部署 api-service</span>
+<span class="w">            </span><span class="nt">port</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">number</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8080</span>
+</pre></div></td></tr></table></div>
+</div><div class="code-viewer" id="cf6"><div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span>
+<span class="normal">15</span>
+<span class="normal">16</span>
+<span class="normal">17</span>
+<span class="normal">18</span>
+<span class="normal">19</span>
+<span class="normal">20</span>
+<span class="normal">21</span>
+<span class="normal">22</span>
+<span class="normal">23</span>
+<span class="normal">24</span>
+<span class="normal">25</span>
+<span class="normal">26</span>
+<span class="normal">27</span>
+<span class="normal">28</span>
+<span class="normal">29</span>
+<span class="normal">30</span>
+<span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span>
+<span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
+<span class="normal">41</span>
+<span class="normal">42</span>
+<span class="normal">43</span>
+<span class="normal">44</span>
+<span class="normal">45</span>
+<span class="normal">46</span>
+<span class="normal">47</span>
+<span class="normal">48</span>
+<span class="normal">49</span>
+<span class="normal">50</span>
+<span class="normal">51</span>
+<span class="normal">52</span>
+<span class="normal">53</span>
+<span class="normal">54</span>
+<span class="normal">55</span>
+<span class="normal">56</span>
+<span class="normal">57</span>
+<span class="normal">58</span>
+<span class="normal">59</span>
+<span class="normal">60</span>
+<span class="normal">61</span>
+<span class="normal">62</span>
+<span class="normal">63</span>
+<span class="normal">64</span>
+<span class="normal">65</span>
+<span class="normal">66</span>
+<span class="normal">67</span>
+<span class="normal">68</span>
+<span class="normal">69</span>
+<span class="normal">70</span>
+<span class="normal">71</span>
+<span class="normal">72</span>
+<span class="normal">73</span></pre></div></td><td class="code"><div><pre><span></span><span class="c1"># Level 4 - 实践模式：有状态应用（MySQL StatefulSet）</span>
+<span class="c1"># 包含：Headless Service + StatefulSet + PVC + Secret</span>
+<span class="c1">#</span>
+<span class="c1"># 使用方法：</span>
+<span class="c1">#   kubectl apply -f stateful-app.yaml</span>
+<span class="c1">#   kubectl get statefulsets,pods,pvc,services</span>
+<span class="c1">#   # 连接 MySQL</span>
+<span class="c1">#   kubectl run mysql-client --image=mysql:8.0 --rm -it -- \</span>
+<span class="c1">#     mysql -h mysql-0.mysql -uroot -p</span>
+<span class="c1">#   # 清理（注意 PVC 不会自动删除）</span>
+<span class="c1">#   kubectl delete -f stateful-app.yaml</span>
+<span class="c1">#   kubectl delete pvc -l app=mysql</span>
+
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Secret</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql-secret</span>
+<span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Opaque</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># echo -n 'mysqlroot123' | base64</span>
+<span class="w">  </span><span class="nt">root-password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bXlzcWxyb290MTIz</span>
+
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Service</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql-headless</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3306</span>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
+<span class="w">  </span><span class="nt">clusterIP</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">None</span><span class="w">  </span><span class="c1"># Headless Service，StatefulSet 必需</span>
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">StatefulSet</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">serviceName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql-headless</span>
+<span class="w">  </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
+<span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql:8.0</span>
+<span class="w">        </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MYSQL_ROOT_PASSWORD</span>
+<span class="w">          </span><span class="nt">valueFrom</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">secretKeyRef</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql-secret</span>
+<span class="w">              </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root-password</span>
+<span class="w">        </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">containerPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3306</span>
+<span class="w">        </span><span class="nt">volumeMounts</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql-data</span>
+<span class="w">          </span><span class="nt">mountPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/var/lib/mysql</span>
+<span class="w">  </span><span class="nt">volumeClaimTemplates</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">metadata</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql-data</span>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">accessModes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"ReadWriteOnce"</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">storage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5Gi</span>
+</pre></div></td></tr></table></div>
+</div><div class="code-viewer" id="cf7"><div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span>
+<span class="normal">15</span>
+<span class="normal">16</span>
+<span class="normal">17</span>
+<span class="normal">18</span>
+<span class="normal">19</span>
+<span class="normal">20</span>
+<span class="normal">21</span>
+<span class="normal">22</span>
+<span class="normal">23</span>
+<span class="normal">24</span>
+<span class="normal">25</span>
+<span class="normal">26</span>
+<span class="normal">27</span>
+<span class="normal">28</span>
+<span class="normal">29</span>
+<span class="normal">30</span>
+<span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span>
+<span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
+<span class="normal">41</span>
+<span class="normal">42</span>
+<span class="normal">43</span>
+<span class="normal">44</span>
+<span class="normal">45</span>
+<span class="normal">46</span>
+<span class="normal">47</span>
+<span class="normal">48</span>
+<span class="normal">49</span>
+<span class="normal">50</span>
+<span class="normal">51</span>
+<span class="normal">52</span>
+<span class="normal">53</span>
+<span class="normal">54</span>
+<span class="normal">55</span>
+<span class="normal">56</span>
+<span class="normal">57</span>
+<span class="normal">58</span>
+<span class="normal">59</span>
+<span class="normal">60</span>
+<span class="normal">61</span>
+<span class="normal">62</span>
+<span class="normal">63</span>
+<span class="normal">64</span>
+<span class="normal">65</span>
+<span class="normal">66</span>
+<span class="normal">67</span>
+<span class="normal">68</span>
+<span class="normal">69</span>
+<span class="normal">70</span>
+<span class="normal">71</span>
+<span class="normal">72</span>
+<span class="normal">73</span>
+<span class="normal">74</span>
+<span class="normal">75</span>
+<span class="normal">76</span>
+<span class="normal">77</span>
+<span class="normal">78</span>
+<span class="normal">79</span>
+<span class="normal">80</span>
+<span class="normal">81</span>
+<span class="normal">82</span>
+<span class="normal">83</span>
+<span class="normal">84</span>
+<span class="normal">85</span>
+<span class="normal">86</span>
+<span class="normal">87</span>
+<span class="normal">88</span>
+<span class="normal">89</span>
+<span class="normal">90</span>
+<span class="normal">91</span>
+<span class="normal">92</span>
+<span class="normal">93</span>
+<span class="normal">94</span>
+<span class="normal">95</span>
+<span class="normal">96</span>
+<span class="normal">97</span>
+<span class="normal">98</span>
+<span class="normal">99</span></pre></div></td><td class="code"><div><pre><span></span><span class="c1"># Level 4 - 实践模式：完整的无状态 Web 应用</span>
+<span class="c1"># 包含：Deployment（含滚动更新、健康检查、资源限制）+ Service + ConfigMap + Secret</span>
+<span class="c1">#</span>
+<span class="c1"># 使用方法：</span>
+<span class="c1">#   kubectl apply -f web-app-full.yaml</span>
+<span class="c1">#   kubectl get all -l app=web</span>
+<span class="c1">#   # 在 minikube 中访问</span>
+<span class="c1">#   minikube service web-app-service</span>
+<span class="c1">#   # 清理</span>
+<span class="c1">#   kubectl delete -f web-app-full.yaml</span>
+
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ConfigMap</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-config</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">APP_ENV</span><span class="p">:</span><span class="w"> </span><span class="s">"production"</span>
+<span class="w">  </span><span class="nt">LOG_LEVEL</span><span class="p">:</span><span class="w"> </span><span class="s">"info"</span>
+
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Secret</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-secret</span>
+<span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Opaque</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># echo -n 'admin123' | base64</span>
+<span class="w">  </span><span class="nt">admin-password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">YWRtaW4xMjM=</span>
+
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deployment</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-app</span>
+<span class="w">  </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">  </span><span class="nt">strategy</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RollingUpdate</span>
+<span class="w">    </span><span class="nt">rollingUpdate</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">maxSurge</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">maxUnavailable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span>
+<span class="w">  </span><span class="nt">template</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">labels</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span>
+<span class="w">    </span><span class="nt">spec</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">containers</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<span class="w">        </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx:1.25</span>
+<span class="w">        </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">containerPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">        </span><span class="nt">resources</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">requests</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">"128Mi"</span>
+<span class="w">            </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">"250m"</span>
+<span class="w">          </span><span class="nt">limits</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">"256Mi"</span>
+<span class="w">            </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">"500m"</span>
+<span class="w">        </span><span class="nt">livenessProbe</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">httpGet</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+<span class="w">            </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">          </span><span class="nt">initialDelaySeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">          </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">        </span><span class="nt">readinessProbe</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">httpGet</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+<span class="w">            </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">          </span><span class="nt">initialDelaySeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">          </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">        </span><span class="nt">envFrom</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">configMapRef</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-config</span>
+<span class="w">        </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN_PASSWORD</span>
+<span class="w">          </span><span class="nt">valueFrom</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">secretKeyRef</span><span class="p">:</span>
+<span class="w">              </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-secret</span>
+<span class="w">              </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">admin-password</span>
+
+<span class="nn">---</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Service</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-app-service</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web</span>
+<span class="w">  </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">protocol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TCP</span>
+<span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">    </span><span class="nt">targetPort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NodePort</span>
+</pre></div></td></tr></table></div>
+</div></div></div></section>
+  </main>
+  <nav class="side-tabs" aria-label="产物导航"><button class="side-tab" data-tab="overview">概览</button><button class="side-tab" data-tab="path">学习路径</button><button class="side-tab" data-tab="resources">资源</button><button class="side-tab" data-tab="code">代码示例</button></nav>
+</div>
+<script>
+(function () {
+  // JS 生效标记：CSS 以 .js 前缀隐藏面板，无 JS 时全部可见（无闪烁，加载即定）
+  document.body.classList.add('js');
+  var reduceMotion = window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.side-tab'));
+  var panels = {
+    overview: 'panel-overview', path: 'panel-path',
+    resources: 'panel-resources', code: 'panel-code'
+  };
+  function activate(name, push) {
+    tabs.forEach(function (t) { t.classList.toggle('active', t.dataset.tab === name); });
+    Object.keys(panels).forEach(function (k) {
+      var el = document.getElementById(panels[k]);
+      if (el) el.classList.toggle('active', k === name);
+    });
+    if (push) history.replaceState(null, '', '#tab=' + name);
+  }
+  function fromHash() {
+    var m = location.hash.match(/^#tab=(\w+)/);
+    if (m && document.getElementById(panels[m[1]])) return m[1];
+    return tabs.length ? tabs[0].dataset.tab : null;
+  }
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () { activate(t.dataset.tab, true); });
+  });
+  window.addEventListener('hashchange', function () {
+    var n = fromHash(); if (n) activate(n, false);
+  });
+  // 外部链接一律新窗口（规格 §3.2 资源 tab）
+  document.querySelectorAll('.panel a[href^="http"]').forEach(function (a) {
+    a.target = '_blank'; a.rel = 'noopener';
+  });
+  // 进度条锚点：先切到学习路径 tab，再平滑滚动（覆盖 hash 路由冲突）
+  var progressSteps = Array.prototype.slice.call(document.querySelectorAll('.progress-step'));
+  var setActiveStep = function (link) {
+    progressSteps.forEach(function (s) { s.classList.toggle('active', s === link); });
+  };
+  progressSteps.forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      activate('path', false);
+      setActiveStep(a); // 点击即时高亮所跳章节（不等观察器回调）
+      var el = document.getElementById(a.getAttribute('href').slice(1));
+      if (el) el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
+    });
+  });
+  // scroll spy：观察各 Level 章节锚点，视口内当前章节对应的进度步骤保持高亮。
+  // 无 Level（无进度条）、锚点目标缺失或浏览器不支持时静默不注册，不报错。
+  if (progressSteps.length && 'IntersectionObserver' in window) {
+    var stepTargets = [];
+    progressSteps.forEach(function (a) {
+      var el = document.getElementById(a.getAttribute('href').slice(1));
+      if (el) stepTargets.push({ link: a, el: el });
+    });
+    if (stepTargets.length) {
+      var spy = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (!en.isIntersecting) return;
+          stepTargets.forEach(function (t) {
+            if (t.el === en.target) setActiveStep(t.link);
+          });
+        });
+      }, { rootMargin: '0px 0px -70% 0px', threshold: 0 });
+      stepTargets.forEach(function (t) { spy.observe(t.el); });
+    }
+  }
+  // 代码文件切换
+  var cbtns = document.querySelectorAll('.code-file-btn');
+  var cviews = document.querySelectorAll('.code-viewer');
+  cbtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      cbtns.forEach(function (x) { x.classList.remove('active'); });
+      b.classList.add('active');
+      cviews.forEach(function (v) { v.classList.remove('active'); });
+      var v = document.getElementById(b.dataset.file);
+      if (v) v.classList.add('active');
+    });
+  });
+  if (cbtns.length) {
+    cbtns[0].classList.add('active');
+    // 首文件查看器同步补 active：JS 场景下互斥显示由 .active 独占
+    // （first-of-type 兜底已被 .js 规则压掉，仅服务无 JS 环境）
+    var firstView = document.getElementById(cbtns[0].dataset.file);
+    if (firstView) firstView.classList.add('active');
+  }
+  var init = fromHash();
+  if (init) activate(init, false);
+})();
+</script>
+<!-- learning-factory 0.2.1 html_builder 构建于 2026-10-24 21:20 -->
+</body>
+</html>

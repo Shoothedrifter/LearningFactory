@@ -520,22 +520,16 @@ def main(argv: list[str] | None = None) -> int:
     return 1 if failed else 0
 
 
-def _run_prune(parser: argparse.ArgumentParser, target: Path, args: argparse.Namespace) -> int:
-    """--prune 路径：逐目录「先重建 HTML、成功才删源产物」，失败目录源文件保留。"""
-    if args.output:
-        parser.error("--prune 与 --output 互斥")  # SystemExit(2)
-
+def _collect_prune_dirs(target: Path) -> list[Path]:
+    """收集可清理的技术目录：target 本身是技术目录时为 [target]，否则枚举子目录。"""
     if _is_tech_dir(target):
-        dirs = [target]
-    else:
-        dirs = sorted(
-            d for d in target.iterdir() if d.is_dir() and _is_tech_dir(d)
-        )
-        if not dirs:
-            print(f"错误：{target} 下无可清理的技术目录", file=sys.stderr)
-            return 1
+        return [target]
+    return sorted(d for d in target.iterdir() if d.is_dir() and _is_tech_dir(d))
 
-    if not args.yes:
+
+def _prune_dirs(dirs: list[Path], *, assume_yes: bool = False) -> int:
+    """列清单确认 + 逐目录「先重建 HTML、成功才删源产物」，失败目录源文件保留。"""
+    if not assume_yes:
         print("将清理以下目录的源产物（只保留 HTML，不可逆）：")
         for d in dirs:
             print(f"  {d}")
@@ -565,6 +559,30 @@ def _run_prune(parser: argparse.ArgumentParser, target: Path, args: argparse.Nam
         print(f"已清理源产物：{'、'.join(removed)}（目录只留 HTML）")
     print(f"批量清理完成：成功 {len(dirs) - failed} / 失败 {failed}")
     return 1 if failed else 0
+
+
+def prune_factory_root(root: Path, *, assume_yes: bool = False) -> int:
+    """脚手架 prune 指令入口：对输出根目录批量瘦身（与 CLI --prune 同一逻辑）。"""
+    if not root.is_dir():
+        print(f"错误：输出根目录不存在：{root}", file=sys.stderr)
+        return 1
+    dirs = _collect_prune_dirs(root)
+    if not dirs:
+        print(f"错误：{root} 下无可清理的技术目录", file=sys.stderr)
+        return 1
+    return _prune_dirs(dirs, assume_yes=assume_yes)
+
+
+def _run_prune(parser: argparse.ArgumentParser, target: Path, args: argparse.Namespace) -> int:
+    """--prune 路径：解析参数后复用 prune_dirs（互斥与目标解析在 CLI 层）。"""
+    if args.output:
+        parser.error("--prune 与 --output 互斥")  # SystemExit(2)
+
+    dirs = _collect_prune_dirs(target)
+    if not dirs:
+        print(f"错误：{target} 下无可清理的技术目录", file=sys.stderr)
+        return 1
+    return _prune_dirs(dirs, assume_yes=args.yes)
 
 
 if __name__ == "__main__":

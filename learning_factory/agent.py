@@ -533,6 +533,18 @@ def _sse(event_type: str, **kwargs) -> str:
     return json.dumps({"type": event_type, **kwargs}, ensure_ascii=False)
 
 
+def _handle_prune_command():
+    """脚手架内置指令 prune：对输出根批量瘦身（先重建再删，y 确认）。
+
+    封装标准与收尾钩子一致：任何内部异常兜底打印一行，绝不炸会话循环。
+    """
+    try:
+        from .html_builder import prune_factory_root
+        prune_factory_root(Path(get_output_root_dir()))
+    except Exception as e:
+        print(f"[prune] 执行失败：{e}")
+
+
 def _auto_html_build_events(since: float):
     """
     收尾钩子（二期）：把本轮被写过的技术目录自动聚合为单文件 HTML。
@@ -895,7 +907,7 @@ async def main(resume=None):
     # 横幅不展示模型名：默认供应商（智谱 GLM）只是出厂配置而非系统定性，
     # 模型名对用户无信息量且暴露供应商绑定（test_cli_render 钉住无 glm 字样）
     print("学习工厂已启动")
-    print("输入 'exit' 退出，输入 'clear' 清空对话历史")
+    print("输入 'exit' 退出，输入 'clear' 清空对话历史，输入 'prune' 瘦身学习包（只留 HTML）")
     print("=" * 60)
 
     while True:
@@ -916,6 +928,10 @@ async def main(resume=None):
             conversation_history.clear()
             session_path = new_session_path()  # 旧会话文件保留，新轮次写入新文件
             print("[对话历史已清空]")
+            continue
+
+        if user_input.lower() == "prune":
+            _handle_prune_command()
             continue
 
         # 把用户消息加入对话历史，并逐轮落盘（崩溃也保留已写轮次）
