@@ -1,6 +1,6 @@
 ---
 name: learning-factory
-description: Generate a complete Chinese learning package (5-level learning path, curated resources, runnable code examples, single-file interactive HTML) for any technology topic. Use when the user asks to create a learning plan / study path / 学习计划 for a tool, framework, or technology.
+description: Generate a complete Chinese learning package (5-level learning path, curated resources, runnable code examples, single-file interactive HTML) for any technology topic. Use when the user asks to create a learning plan / study path / 学习计划, or to learn / get started with / 入门 any tool, framework, or technology.
 license: MIT
 compatibility: macOS or Linux with bash and python3 (3.9+); Windows not supported in v1; uv recommended for script dependencies.
 ---
@@ -44,13 +44,13 @@ Produce the four artifacts under the Output Format below, following `references/
 
 ### 5. Build
 
-Aggregate everything into a single interactive HTML page with `scripts/build_html.py`:
+Aggregate everything into a single interactive HTML page with `scripts/build_html.py`. The script ships with this skill and lives **next to this SKILL.md** — do NOT rely on a bare relative path like `scripts/build_html.py`, which resolves against the user's working directory, not the skill installation. Invoke it by its anchored path: on hosts that expose the skill directory as a variable (e.g. Claude Code's `${CLAUDE_SKILL_DIR}`) use `${CLAUDE_SKILL_DIR}/scripts/build_html.py`; otherwise resolve the absolute path to this skill's directory first.
 
 ```bash
-uv run scripts/build_html.py Learning-Factory/learning-{topic}
+uv run <skill-dir>/scripts/build_html.py Learning-Factory/learning-{topic}
 ```
 
-If `uv` is unavailable, fall back to `python3 scripts/build_html.py <dir>`; if imports fail there, ask the user to run `pip install markdown pygments` and retry (the script header also declares these via PEP 723).
+If `uv` is unavailable, fall back to `python3 <skill-dir>/scripts/build_html.py <dir>`; if imports fail there, ask the user to run `pip install markdown pygments` and retry (the script header also declares these via PEP 723).
 
 ### 6. Verify
 

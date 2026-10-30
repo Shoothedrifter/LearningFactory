@@ -65,10 +65,13 @@ def test_skill_md_under_500_lines():
 
 
 def test_description_bilingual_triggers():
-    """description 含双语触发词：英文 "learning plan" 与中文 "学习"（Review Focus #3）。"""
+    """description 含双语触发词：英文 "learning plan" 与中文 "学习"（Review Focus #3），
+    外加口语化同义词 get started / 入门（R5：扩大问法命中面）。"""
     desc = _frontmatter_value(SKILL_MD.read_text(encoding="utf-8"), "description").lower()
     assert "learning plan" in desc
     assert "学习" in desc
+    assert "get started" in desc
+    assert "入门" in desc
 
 
 def test_skill_files_vendor_neutral():
@@ -142,3 +145,19 @@ def test_skills_symlink_valid():
     link = REPO_ROOT / "skills" / "learning-factory"
     assert link.is_symlink(), "skills/learning-factory 应为 symlink"
     assert (link / "SKILL.md").exists(), "symlink 目标应内含 SKILL.md"
+
+
+def test_build_step_anchors_script_path():
+    """Build 步骤必须把脚本路径锚定到 skill 安装目录（spec R2/C3：宿主从用户
+    cwd 跑相对路径 scripts/ 会解析失败——正是未验证宿主 Codex 的头号坑）。"""
+    skill_md = SKILL_MD.read_text(encoding="utf-8")
+    build_section = skill_md.split("### 5. Build", 1)[1].split("### 6.", 1)[0]
+    assert "next to this SKILL.md" in build_section, "Build 节应说明脚本随 skill 安装、位于 SKILL.md 旁"
+    assert "${CLAUDE_SKILL_DIR}" in build_section, "Build 节应给出宿主锚定变量的补充写法"
+
+
+def test_frozen_artifact_names_align(build_html_module):
+    """冻结 CLI 的 ARTIFACT_NAMES 与 skill 脚本一致（J9「致命 bug 两处同步」
+    约定的机器化：冻结包无直接测试覆盖后，靠此断言防两副本漂移）。"""
+    import learning_factory.html_builder as frozen
+    assert tuple(frozen.ARTIFACT_NAMES) == tuple(build_html_module.ARTIFACT_NAMES)

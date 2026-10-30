@@ -317,7 +317,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-测试覆盖（233 项）：同轮多工具并行执行与消息协议完整性（tool_call_id 顺序回填、单工具失败隔离）、
+测试覆盖（246 项）：同轮多工具并行执行与消息协议完整性（tool_call_id 顺序回填、单工具失败隔离）、
 分块写入硬限制（1500 字符）与覆盖防线、同轮同文件写/dispatch 双防线（路径两级启发式提取）、
 dispatch 429 退避重试与并发节流（信号量）、Skill 渐进披露三层加载、模型配置钉住、
 供应商中立钉住（`test_no_glm_names.py`）与 MCP Key 回落（`test_mcp_key_fallback.py`）、
