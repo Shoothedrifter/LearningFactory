@@ -2,11 +2,30 @@
 
 本文面向贡献者与维护者，记录系统的完整架构设计、工具系统、协议与配置真相。用户侧的安装与使用说明见 [README.md](README.md)。
 
+## 仓库形态：Agent Skill 为主，CLI 冻结
+
+本仓库是**双形态**的（设计全文见 `docs/superpowers/specs/2026-10-30-skill-adaptation-design.md`）：
+
+- **主产品：Agent Skill**（v1 起推荐路径）。skill 实体在 `.agents/skills/learning-factory/`（SKILL.md 主流程 + 五个 references 角色卡 + `scripts/build_html.py`）。宿主 agent（Claude Code / Codex 等）自身当协调者：三路研究、交叉印证、写产物、调脚本聚合 HTML，全程零配置（无 API Key、无模型参数）。`skills/learning-factory` 是指向 `../.agents/skills/learning-factory` 的 symlink——Claude Code plugin 扫描 `skills/` 目录，Codex 读 `.agents/skills/`，单实体双宿主。分发入口在 `.claude-plugin/`（plugin.json + marketplace.json）。
+- **冻结：Python CLI**（`learning_factory/` 包）。多智能体引擎（ReAct 循环 / MCP 工具 / 子 Agent 调度）冻结于 0.3.0：保留可用、仅修致命问题，不再演进——引擎类新功能只进 skill 形态。`html_builder.py` 与 skill 脚本同源：脚本已抽取为 `.agents/skills/learning-factory/scripts/build_html.py`（3.9+ 兼容、PEP 723 内联依赖、pygments 可选降级），**两处同步改**——原 html_builder 的约 75 项测试已整体迁移到 skill 脚本（`test_html_builder.py` / `test_cli_build.py` 按文件位置加载被测脚本），冻结的包内代码由既有 CLI 测试看守。
+
+skill 包有独立守护测试（`tests/test_skill_package.py`）：frontmatter 合规、相对路径引用存在、产物名单一事实源（SKILL.md 目录树 ↔ 脚本 `ARTIFACT_NAMES`）、五级标题跨文件一致、供应商中立。
+
 ## 项目结构
 
 ```
 .
-├── learning_factory/                # 可安装包（代码 + 提示词 + 技能 + 静态资源随包分发）
+├── .agents/skills/learning-factory/ # Agent Skill 实体（主产品，双宿主共用）
+│   ├── SKILL.md                      #   主流程：Hard Rules + 六阶段 + 产物规范 + DoD
+│   ├── references/                   #   五个角色卡（docs / repo / web 研究 + 写作纪律 + 五级框架）
+│   └── scripts/
+│       ├── build_html.py             #   HTML 构建器（3.9+ 兼容、PEP 723、pygments 可选降级）
+│       └── templates/learning_page.html
+│
+├── skills/learning-factory -> ../.agents/skills/learning-factory   # Claude Code plugin 扫描路径的 symlink
+├── .claude-plugin/                   # Claude Code 分发入口（plugin.json + marketplace.json）
+│
+├── learning_factory/                # 可安装包（代码 + 提示词 + 技能 + 静态资源随包分发）——冻结于 0.3.0
 │   ├── agent.py                # 主入口：CLI 对话循环 + 主 Agent 定义（普通 + 流式版本）+ 收尾 HTML 自动构建钩子
 │   ├── html_builder.py         # HTML 构建器：四产物聚合为单文件交互页面（纯函数渲染管线 + learning-factory-build CLI）
 │   ├── server.py               # FastAPI Web 服务（SSE 流式推送 + 会话管理）
@@ -44,7 +63,7 @@
 │           └── references/
 │               └── progressive-learning.md  # 渐进式学习框架（5 个层级）
 │
-├── tests/                      # pytest 测试（233 项，全 mock 无需真实 API Key）
+├── tests/                      # pytest 测试（246 项，全 mock 无需真实 API Key；含 skill 脚本与守护测试）
 ├── pyproject.toml              # 打包与依赖真相（入口点 learning-factory / learning-factory-build、requires-python>=3.11）
 ├── requirements.txt            # git clone 直跑场景的依赖清单（版本以 pyproject.toml 为准）
 └── .env                        # 环境变量（API 密钥，从 .env.example 复制）

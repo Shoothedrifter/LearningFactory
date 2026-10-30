@@ -6,17 +6,15 @@
 >
 > 把这些交给**学习工厂**：一句话说出你想学的东西，它会在本地生成一份拿来就能开始的学习包——五级学习路径、参考资源与可运行的代码示例，并自动聚合成一个双击即看的交互式 HTML 页面。
 
-多智能体协作研究系统，直接通过 OpenAI 兼容 SDK 调用大模型 API，无需 LangChain / LangGraph 等框架依赖。默认对接智谱 GLM（注册即用），也可切换到其他 OpenAI 兼容供应商（见[配置](#配置)）。
-
-系统由一个**主 Agent**（协调者）和四个**子 Agent**（三路研究专家 + 专职写入引擎）组成，通过 ReAct 循环自动调用工具、分发任务、综合结果。告诉它你想学什么——比如「给我制定一份学习 Docker 的学习计划」——它会并行研究官方文档、代码仓库与社区内容，并在本地生成一套可以直接开始的学习路径。
+**推荐通过 Agent Skill 使用（零配置）**：skill 装进你的 coding agent（Claude Code / Codex 等）后，协调、研究与写作由宿主 agent 本身完成——不需要配置任何 API Key 与模型参数。原有 Python CLI 已冻结于 0.3.0，仅修致命问题（见[下文](#cli冻结维护)）。
 
 ## 📒 它能做什么
 
-- **一句话请求，生成完整中文学习包**：五级渐进式学习路径（概述 → 安装上手 → 核心概念 → 实战模式 → 进阶指引），文档一律简体中文（代码、命令与专有名词保留原文）
-- **三路并行研究**：官方文档、仓库分析、社区教程同时进行，结果交叉印证
+- **一句话请求，生成完整中文学习包**：五级渐进式学习路径（概览与动机 → 安装与 Hello World → 核心概念 → 实战模式 → 进阶方向），文档一律简体中文（代码、命令与专有名词保留原文）
+- **三路研究**：官方文档、仓库分析、社区内容三路结果交叉印证，宿主支持并行时三路同时进行
 - **产物落盘本地**：导览 README、资源汇总、学习路径主文档、可运行的代码示例，全部写入本地目录
-- **单文件交互式 HTML**：每轮对话结束自动把学习包聚合成一个自包含 HTML（四 tab 浏览：概览 / 学习路径 / 资源 / 代码示例，资源链接全部可点击），双击离线可看；存量目录也可用 `learning-factory-build` 手动构建
-- **多轮对话与任务续作**：中途有文件未完成时，一句「继续完成任务」即可补齐（HTML 随每轮自动重建，最终轮必然完整）
+- **单文件交互式 HTML**：研究完成自动把学习包聚合成一个自包含 HTML（四 tab 浏览：概览 / 学习路径 / 资源 / 代码示例，资源链接全部可点击），双击离线可看
+- **完成定义（DoD）自检**：宿主在最终回复中逐项确认五级标题、四产物、链接来源与 HTML 构建结果
 
 生成的学习包结构示例（以真实产物 learning-kubernetes 为例）：
 
@@ -29,7 +27,7 @@ Learning-Factory/learning-kubernetes/
 │   ├── 01-hello-world/       # nginx-pod.yaml 入门示例
 │   ├── 02-core-concepts/     # deployment / service / configmap-secret 3 个核心练习
 │   └── 03-patterns/          # cronjob / ingress / stateful-app 等 4 个实践模式
-└── learning-kubernetes.html  # 单文件交互式页面（对话结束自动生成）
+└── learning-kubernetes.html  # 单文件交互式页面（研究完成自动生成）
 ```
 
 本地已实测生成 10 个不同主题的学习包（transformer / docker / kubernetes / pytorch / ai-agent / vllm 等）。以 learning-kubernetes 包为例，点击下面链接即可打开它自动聚合出的单文件交互式页面——四 tab 浏览（概览 / 学习路径 / 资源 / 代码示例）、资源链接可点击、离线可用：
@@ -40,141 +38,60 @@ Learning-Factory/learning-kubernetes/
 
 页面源文件在 [examples/learning-kubernetes.html](examples/learning-kubernetes.html)（自包含单文件，下载后双击即可离线查看）。
 
-## 🪛 安装
+## 🪛 安装（Agent Skill，零配置）
 
-要求 Python >= 3.11。三种方式任选：
+skill 实体在本仓库 `.agents/skills/learning-factory/`（单一实体，两个宿主共用）。按你的宿主选择：
 
-**方式 A：pipx 从 PyPI 直装（推荐，隔离环境、获得 `learning-factory` 命令）**
+| 宿主 | 安装方式 |
+|------|----------|
+| **Claude Code** | 主路径：`/plugin marketplace add Shoothedrifter/LearningFactory` → `/plugin install learning-factory@LearningFactory`。免 marketplace 兜底：clone 本仓库后把 `.agents/skills/learning-factory/` **复制**到 `~/.claude/skills/`（不要整仓 clone 进 skills 目录——嵌套的 SKILL.md 扫不到） |
+| **Codex CLI** | 主路径：用 `$skill-installer` 从本仓库 git URL 装入 `~/.agents/skills/`；或手动复制 `.agents/skills/learning-factory/` 到 `~/.agents/skills/`（不推荐 clone 整仓进你的项目——仓库根的 AGENTS.md 会被当作项目指令加载） |
+| **其他宿主** | 任何读 `.agents/skills/`（项目级）或 `~/.agents/skills/`（用户级）的 agent 均可直接使用（v1 未逐一测试） |
+
+零配置指**无需配置任何 API Key 与模型参数**——研究、写作与脚本执行全部走宿主自带的模型与工具。宿主首次运行时的沙箱批准（网络访问、临时目录写入）属宿主原生交互，按提示确认即可。
+
+脚本依赖（markdown / pygments）由 skill 脚本头部的 PEP 723 声明描述：装了 [uv](https://docs.astral.sh/uv/) 则自动装依赖直跑；没有 uv 时用 `python3`（3.9+）直接跑，缺依赖时脚本会给出一行安装指引。
+
+## 🔋 使用
+
+装好后直接在宿主对话里说，中英皆可：
+
+```
+给我制定一份学习 Docker 的学习计划
+Create a learning plan for Kubernetes
+```
+
+宿主会按 SKILL.md 的流程执行：三路研究（官方文档 / 仓库 / 社区）→ 交叉印证 → 写四类产物 → 调 `scripts/build_html.py` 聚合单文件 HTML → 按完成定义（DoD）逐项自检并在最终回复里确认。产出的 HTML 双击即可离线打开：四 tab 切换、资源链接全部可点击、代码示例带语法高亮与行号的嵌套文件树。
+
+多轮续作：中途打断或提示「学习包还不完整」时，再说一句「继续完成任务」即可补齐（skill 的写入纪律是先读后写，不破坏已有内容）。
+
+## 📀 CLI（冻结维护）
+
+Python 脚手架 CLI（`learning-factory` 命令，自带多智能体引擎）**冻结于 0.3.0**：保留可用、修致命问题，不再演进——新功能只进 skill 形态。仍想用 CLI 的：
 
 ```bash
-pipx install learning-factory
+pipx install learning-factory          # 从 PyPI 安装
 ```
 
-**方式 B：pipx 从 GitHub 直装（无需本地仓库副本）**
-
-```bash
-pipx install git+https://github.com/Shoothedrifter/LearningFactory.git
-```
-
-**方式 C：clone 后 pip 安装（开发场景）**
-
-```bash
-git clone https://github.com/Shoothedrifter/LearningFactory.git
-cd LearningFactory
-pip install -r requirements.txt        # 直跑（完整依赖）
-# 或
-pip install -e ".[dev]"                # 可编辑安装 + 开发依赖
-```
-
-> 依赖版本以 [pyproject.toml](pyproject.toml) 为准（openai / httpx / python-dotenv / mcp / beautifulsoup4 / markdown / pygments）。
-
-## ⚙️ 配置
-
-在**运行目录**创建 `.env` 文件（可参考 [.env.example](.env.example)），写入你的 API Key（模型供应商如果是智谱 GLM，开箱即用）：
-
-```env
-# 以 GLM 供应商获取地址为例：https://bigmodel.cn → API 密钥
-LLM_API_KEY="your-api-key-here"
-```
-
-也可以不建 `.env`，直接导出环境变量：`export LLM_API_KEY="你的密钥"`。
-
-注意：程序只加载**运行目录**下的 `.env`，不做向上查找——在其他目录运行时请在该目录放置 `.env`。未配置 Key 时启动即打印获取与配置指引并退出，不会等到首次调用才报错。
-
-**换用其他 OpenAI 兼容供应商**：把 `LLM_BASE_URL` 设为该供应商端点，并按其模型列表覆盖 `LLM_MAIN_MODEL` / `LLM_SUB_MODEL` / `LLM_REPO_MODEL`。三个研究工具（网页搜索/抓取、仓库读取）默认走智谱的 MCP 服务 —— 换供应商时把三个 `MCP_*_URL` 一并切换（见下文「研究工具的 MCP 端点」）。
-
-非智谱 GLM 用户的最小配置是 **4 个变量**——只填 `LLM_API_KEY` 不够（默认端点与模型名都是 GLM，其他供应商的 Key 会 401、与智谱模型名冲突）。以 Kimi 与 DeepSeek 为例（模型名以各供应商当前列表为准）：
-
-```env
-# Kimi（Moonshot）：https://platform.moonshot.cn → API Key 管理
-LLM_API_KEY="<Kimi 的 Key>"
-LLM_BASE_URL="https://api.moonshot.cn/v1"
-LLM_MAIN_MODEL="<按 Kimi 模型列表填写>"
-LLM_SUB_MODEL="<按 Kimi 模型列表填写>"
-LLM_REPO_MODEL="<按 Kimi 模型列表填写>"
-
-# DeepSeek：https://platform.deepseek.com → API Keys
-LLM_API_KEY="<DeepSeek 的 Key>"
-LLM_BASE_URL="https://api.deepseek.com/v1"
-LLM_MAIN_MODEL="deepseek-chat"
-LLM_SUB_MODEL="deepseek-chat"
-LLM_REPO_MODEL="deepseek-chat"
-```
-
-**研究工具的 MCP 端点**：三个研究工具默认使用智谱的 MCP 服务，认证与模型 API 共用 `LLM_API_KEY`。换供应商时若其也提供 MCP 服务，把 `MCP_WEB_SEARCH_URL` / `MCP_WEB_READER_URL` / `MCP_ZREAD_URL` 一并切到该供应商端点（Key 继续共用；仅当供应商对 MCP 单独发 Key 时再设 `MCP_API_KEY`）；若不提供，研究工具不可用——主 Agent 调度、Notion 工具、本地文件读写不受影响。
-
-模型切换、MCP 端点覆盖等全部环境变量（写进 `.env` 或直接导出均可）：
-
-| 环境变量 | 必需 | 默认值 | 用途 |
-|----------|------|--------|------|
-| `LLM_API_KEY` | 是 | —（未配置则启动即退出） | 模型供应商 API 密钥 |
-| `LLM_BASE_URL` | 否 | `https://open.bigmodel.cn/api/paas/v4/` | 模型供应商 OpenAI 兼容端点（自建代理/兼容网关时覆盖） |
-| `LLM_MAIN_MODEL` | 否 | `glm-5` | 主 Agent 模型 |
-| `LLM_SUB_MODEL` | 否 | `glm-5-turbo` | 子 Agent 通用模型（docs_researcher / web_researcher / file_writer） |
-| `LLM_REPO_MODEL` | 否 | `glm-5` | repo_analyzer 专用模型 |
-| `MCP_API_KEY` | 否 | 回落 `LLM_API_KEY` | MCP 研究工具独立认证（供应商对 MCP 单独发 Key 时设） |
-| `MCP_WEB_SEARCH_URL` | 否 | `https://open.bigmodel.cn/api/mcp/web_search_prime/mcp` | MCP 网页搜索端点 |
-| `MCP_WEB_READER_URL` | 否 | `https://open.bigmodel.cn/api/mcp/web_reader/mcp` | MCP 网页抓取端点 |
-| `MCP_ZREAD_URL` | 否 | `https://open.bigmodel.cn/api/mcp/zread/mcp` | MCP GitHub 仓库读取端点 |
-
-## 🔋 运行
-
-**CLI 模式（终端交互）：**
-
-```bash
-learning-factory                          # pipx/pip 安装后的入口命令
-# 或（clone 场景未安装时）
-python -m learning_factory.agent
-```
-
-- 输入 `exit` 退出；输入 `clear` 清空对话历史；输入 `prune` 瘦身学习包目录（构建 HTML 后删除源文件，只留单文件页面，执行前列清单确认）
-- `--resume`：恢复上次会话；指定路径 `--resume ~/.learning_factory/sessions/<文件>.jsonl`
-- `--output-dir <目录>`：产物输出根目录（默认 `Learning-Factory/`）
-- 过程实时可见：子 Agent 启动/完成（`▶`/`✔`/`✖`）与工具调用逐行打印，最终答案整段输出
-- 本轮写过产物目录时，答案前自动出一行 `[HTML] 已构建 Learning-Factory/learning-xxx/learning-xxx.html`（构建失败只提示一行原因，不影响会话）
-
-**手动构建 HTML（存量目录 / 批量出页面）：**
-
-```bash
-learning-factory-build Learning-Factory/learning-kubernetes   # 单个目录
-learning-factory-build Learning-Factory/                       # 根目录批量构建全部
-```
-
-**瘦身（只留 HTML 单文件）：** 学习包确认完成后，可删除源文件、目录里只留 HTML——分享时单发这一个文件即可。
-
-```bash
-learning-factory-build --prune Learning-Factory/learning-kubernetes   # 构建后删源文件，只留 HTML
-learning-factory-build --prune Learning-Factory/ --yes                 # 批量瘦身（--yes 跳过确认）
-```
-
-瘦身是"这个包我定了、不改了"的终态操作：先重建 HTML 再删源文件（构建失败的目录不删），之后想"继续完成任务"会整体重写、代码示例只能看/复制不能直接运行——还要续写或跑代码就先别瘦身。
-
-产出的 HTML 双击即可离线打开：四 tab 切换（概览 / 学习路径 / 资源 / 代码示例）、刷新停留在当前 tab、资源文档里的链接全部可点击跳转、学习路径顶部 Level 进度条随滚动高亮、代码示例带语法高亮与行号的嵌套文件树；断网时仅西文字体降级，其余全部正常。
-
-## 📀 会话持久化（CLI）
-
-CLI 模式的对话历史逐轮落盘到家目录 `~/.learning_factory/sessions/`（JSONL 格式，立即写盘不留缓冲），进程崩溃也保留已写轮次；pipx 场景在任意目录启动都写到同处。
-
-- `--resume`：恢复最近一次会话；`--resume <文件路径>` 恢复指定会话
-- 恢复时自动裁掉尾部连续的未回应消息；找不到可恢复会话时开启新会话
-- 输入 `clear` 清空历史时会开启新会话文件，旧会话文件保留
+CLI 需要配置 `LLM_API_KEY` 等环境变量（OpenAI 兼容供应商），详见 [PyPI 页面](https://pypi.org/project/learning-factory/)或仓库 0.3.0 tag 的 README「配置」章节；会话持久化（`--resume`）等 CLI 专有能力同样冻结。CLI 的 HTML 构建器与 skill 脚本同源：`learning-factory-build` 命令行为与 skill 内 `scripts/build_html.py` 一致（含 `--prune` 瘦身）。
 
 ## 📂 更多文档
 
-架构设计（Agent 协作 / ReAct 循环）、工具系统与分配、MCP 集成、Skill 系统、环境变量全表、与原版 claude_agent_sdk 的对应关系——全部见 **[AGENT.md](AGENT.md)**。
+skill 设计（缺口分析 / 双宿主适配 / 分发策略）、架构设计（Agent 协作 / ReAct 循环）、工具系统、与原版 claude_agent_sdk 的对应关系——全部见 **[AGENTS.md](AGENTS.md)**。
 
 ## ⌨️ 开发与测试
 
 ```bash
 pip install -r requirements-dev.txt
-pytest    # 233 项，全 mock 无需真实 API Key
+pytest    # 246 项，全 mock 无需真实 API Key
 ```
+
+skill 包守护测试（frontmatter 合规、引用存在、产物名单一事实源）与脚本测试（3.9 兼容、降级行为）同在 `tests/` 下。
 
 ## 注意事项
 
-- Bash 工具会在本机执行命令，请确保在可信环境中运行
-- `.env` 文件包含 API 密钥，不应提交到版本控制
-- `Learning-Factory/` 下的 `learning-pytorch/` 等目录是系统生成的学习产物（已在 `.gitignore` 中，不入库）
+- skill 的仓库研究策略会在系统临时目录做 `git clone --depth 1` 浅克隆，研究完即删，不留在你的工作区
+- `Learning-Factory/` 下的 `learning-pytorch/` 等目录是生成的学习产物（已在 `.gitignore` 中，不入库）
 
 ## 许可证
 
