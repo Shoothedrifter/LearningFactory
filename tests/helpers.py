@@ -1,6 +1,6 @@
 """
 tests/helpers.py
-测试辅助：伪造 OpenAI 响应结构 + 并发度记录器。
+测试辅助：伪造 OpenAI 响应结构 + 并发度记录器 + skill 脚本加载。
 
 假对象的字段与 agent.py 实际读取的字段一一对应：
   response.choices[0].message.content
@@ -8,8 +8,41 @@ tests/helpers.py
   response.choices[0].finish_reason
 """
 
+import importlib.util
 import json
+import sys
+from pathlib import Path
 from types import SimpleNamespace
+
+# skill 独立脚本位置（仓库根下 .agents/skills/learning-factory/scripts/）
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRIPT_PATH = REPO_ROOT / ".agents" / "skills" / "learning-factory" / "scripts" / "build_html.py"
+
+_build_html_cache = None
+
+
+def load_build_html():
+    """按文件位置加载 skill 脚本 build_html.py，返回缓存的模块对象。
+
+    供迁移后的 test_html_builder / test_cli_build 模块级解包符号用
+    （脚本不在包内，不能 from ... import）；需要观察导入期降级行为的
+    测试改用 conftest.build_html_module_reload。
+
+    模块必须注册进 sys.modules：脚本用了 from __future__ import
+    annotations，dataclass 解析字符串注解时会查 sys.modules[cls.__module__]。
+    """
+    global _build_html_cache
+    if _build_html_cache is None:
+        spec = importlib.util.spec_from_file_location("lf_skill_build_html", SCRIPT_PATH)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        try:
+            spec.loader.exec_module(module)
+        except BaseException:
+            sys.modules.pop(spec.name, None)
+            raise
+        _build_html_cache = module
+    return _build_html_cache
 
 
 def make_tool_call(call_id: str, name: str, **args):

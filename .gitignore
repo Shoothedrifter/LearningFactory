@@ -1,9 +1,11 @@
-docs/
+docs/*
+!docs/superpowers/
+!docs/superpowers/**
 .env
 __pycache__/
 *.pyc
 .pytest_cache
-Learning-Factory
+/Learning-Factory
 logs
 build/
 dist/

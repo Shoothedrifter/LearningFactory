@@ -4,28 +4,34 @@ tests/test_html_builder.py
 
 对应规格 docs/superpowers/specs/2026-10-22-html-builder-design.md。
 构建器零 LLM、零网络、输入目录只读；本文件钉住各纯函数行为。
+
+2026-10-31 起被测对象迁移为 skill 独立脚本
+.agents/skills/learning-factory/scripts/build_html.py（原
+learning_factory/html_builder.py 冻结保留），符号经文件位置加载解包，
+断言一律不变（迁移记录见 2026-10-30-skill-adaptation-design.md J9）。
 """
 
 import re
 
 import pytest
 
-from learning_factory.html_builder import (
-    Artifacts,
-    CodeFile,
-    CodeTree,
-    HtmlBuildError,
-    LevelInfo,
-    build_code_tree,
-    build_html,
-    collect_artifacts,
-    extract_levels,
-    highlight_css,
-    load_template,
-    render_code_panel,
-    render_markdown,
-    render_progress,
-)
+from helpers import load_build_html
+
+_bh = load_build_html()
+Artifacts = _bh.Artifacts
+CodeFile = _bh.CodeFile
+CodeTree = _bh.CodeTree
+HtmlBuildError = _bh.HtmlBuildError
+LevelInfo = _bh.LevelInfo
+build_code_tree = _bh.build_code_tree
+build_html = _bh.build_html
+collect_artifacts = _bh.collect_artifacts
+extract_levels = _bh.extract_levels
+highlight_css = _bh.highlight_css
+load_template = _bh.load_template
+render_code_panel = _bh.render_code_panel
+render_markdown = _bh.render_markdown
+render_progress = _bh.render_progress
 
 
 def test_collect_artifacts_all_present(tmp_path):

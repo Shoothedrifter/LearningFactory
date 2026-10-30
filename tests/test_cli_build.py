@@ -1,14 +1,20 @@
 """
 tests/test_cli_build.py
-learning-factory-build CLI：单目录/批量/输出覆盖/退出码。
+build_html.py CLI：单目录/批量/输出覆盖/退出码。
 
 批量模式下单个目录失败应继续其余目录并返回 1（规格 §5）。
 测试直接调用 main(argv)，不经过子进程。
+2026-10-31 起被测对象迁移为 skill 独立脚本（同 test_html_builder.py）。
 """
 
 import pytest
 
-from learning_factory.html_builder import HtmlBuildError, main, prune_factory_root
+from helpers import load_build_html
+
+_bh = load_build_html()
+HtmlBuildError = _bh.HtmlBuildError
+main = _bh.main
+prune_factory_root = _bh.prune_factory_root
 
 
 def _make_tech_dir(parent, name="learning-demo", bad=False):
