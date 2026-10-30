@@ -1,0 +1,8 @@
+{
+  "name": "learning-factory",
+  "description": "Generate complete Chinese learning packages with 5-level paths, resources, code examples and single-file interactive HTML.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Shoothedrifter"
+  }
+}

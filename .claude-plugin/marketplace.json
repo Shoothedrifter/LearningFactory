@@ -1,0 +1,13 @@
+{
+  "name": "LearningFactory",
+  "description": "Learning Factory skills: generate complete Chinese learning packages (5-level paths, resources, code examples, single-file interactive HTML) for any technology topic.",
+  "owner": {
+    "name": "Shoothedrifter"
+  },
+  "plugins": [
+    {
+      "name": "learning-factory",
+      "source": "./"
+    }
+  ]
+}

@@ -8,11 +8,13 @@ skill 包结构守护：SKILL.md frontmatter 合规（agentskills.io 开放标�
 frontmatter 解析不引第三方 YAML 依赖，按 "---" 围栏取 `key:` 前缀。
 """
 
+import json
 import re
 
 from pathlib import Path
 
-SKILL_DIR = Path(__file__).resolve().parent.parent / ".agents" / "skills" / "learning-factory"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SKILL_DIR = REPO_ROOT / ".agents" / "skills" / "learning-factory"
 SKILL_MD = SKILL_DIR / "SKILL.md"
 
 # 五级中文标题（SKILL.md 与 progressive-learning.md 必须同时包含，防一处改动漂移）
@@ -117,3 +119,26 @@ def test_five_level_titles_consistent():
     for title in FIVE_LEVEL_TITLES:
         assert title in skill_md, f"SKILL.md 缺五级标题 {title}"
         assert title in progressive, f"progressive-learning.md 缺五级标题 {title}"
+
+
+def test_plugin_and_marketplace_json_valid():
+    """plugin.json / marketplace.json 可解析且关键字段锁定：plugin 名
+    learning-factory（version 必有），marketplace 名 LearningFactory 且
+    plugins[0] 的 source 路径真实存在（两步安装命令的确定可跑前提）。"""
+    plugin = json.loads((REPO_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    assert plugin["name"] == "learning-factory"
+    assert plugin["version"]
+
+    marketplace = json.loads((REPO_ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
+    assert marketplace["name"] == "LearningFactory"
+    entry = marketplace["plugins"][0]
+    assert entry["name"] == "learning-factory"
+    assert (REPO_ROOT / ".claude-plugin" / entry["source"]).exists()
+
+
+def test_skills_symlink_valid():
+    """skills/learning-factory 是 symlink 且目标目录内含 SKILL.md
+    （Claude Code plugin 扫描路径 → Codex 通用路径的单实体桥）。"""
+    link = REPO_ROOT / "skills" / "learning-factory"
+    assert link.is_symlink(), "skills/learning-factory 应为 symlink"
+    assert (link / "SKILL.md").exists(), "symlink 目标应内含 SKILL.md"
