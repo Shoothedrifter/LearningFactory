@@ -1,6 +1,4 @@
-docs/*
-!docs/superpowers/
-!docs/superpowers/**
+docs/
 .env
 __pycache__/
 *.pyc
