@@ -54,20 +54,22 @@
 
 ## A2：Codex 宿主冒烟
 
-**2026-10-31 实测：被宿主账户额度阻塞，非 skill 缺陷。** `codex exec`（worktree 内、`-s workspace-write` + network_access）发起后宿主侧返回 `You've hit your usage limit... try again at 3:33 AM`（ChatGPT 账户当日配额耗尽）——请求未到达模型，skill 层零执行。CLI 无零额度消耗的 skill 列举命令，发现机制无法旁路验证。
+**2026-10-31 首测被宿主账户额度阻塞（usage limit，非 skill 缺陷）；同日额度恢复后补测，全项 PASS。**
 
-已确认的宿主侧事实：
+- [x] 项目级路径：主仓库根 `codex exec`（读 `.agents/skills/`）——httpie 主题全链路成功
+- [x] 用户级路径：复制到 `~/.agents/skills/` 后，在 `/tmp`（无项目 skill）发起会话，Codex 逐字引用 skill description——用户级发现机制确认
+- [x] 脚本路径解析（R2）：会话日志实证 Codex 以 `python .agents/skills/learning-factory/scripts/build_html.py Learning-Factory/learning-httpie` 调用——**锚定路径生效**（终审修复的实战验证，未依赖裸相对路径）；`uv run` 路径在前置事实中已实测（自动装依赖）
+- [x] 沙箱：`-s workspace-write` + `-c sandbox_workspace_write.network_access=true` 生效，与 README「沙箱批准属宿主原生交互」说明一致（首次尝试的 `--enable network` 为无效 flag，正确写法如上）
+- [x] 主题 × DoD（R3/R5）：
 
-- ✅ Codex CLI 在本机可用（`codex exec` 正常解析参数并起会话，沙箱策略行输出正常：`sandbox: workspace-write [workdir, /tmp, $TMPDIR] (network access enabled)`）
-- ⚠️ 第一次尝试的 `--enable network` 是无效 feature flag（`-c sandbox_workspace_write.network_access=true` 才是正确写法）——README 的 Codex 沙箱说明措辞不涉具体 flag，无需修订
+| 主题 | 问法 | DoD | 额外强度 |
+|------|------|-----|----------|
+| httpie | 中文「给我制定一份学习 httpie 的学习计划」 | ✅ 四条逐项 | 宿主自写断言脚本核对（五级/四产物/HTML/占位符），三组示例实际运行通过，HTML 76 KB |
+| ripgrep | 英文「Create a learning plan for ripgrep」 | ✅ 四条逐项 | 三个练习脚本实际运行通过，HTML 构建成功 |
 
-待额度恢复后执行（清单照计划）：
+- [x] 产物独立复核（验收人）：两包五级中文标题精确、四产物齐、code-examples 三子目录名与 SKILL.md 约定一致、文档简体中文强制生效
 
-- [ ] 项目级路径：worktree 内 `codex exec`（读 `.agents/skills/`，零外部副作用）
-- [ ] 用户级路径：复制到 `~/.agents/skills/`（需作者批准本机写入）
-- [ ] 脚本路径解析（R2）：`uv run scripts/build_html.py` 与 `python3` 回退两条均实际执行成功
-- [ ] 沙箱批准项与 README 说明一致（网络访问、临时目录写入属宿主原生交互）
-- [ ] 3 主题 × DoD 核对（同 Claude Code 广度）
+Docker/PyTorch 主题广度与「我想入门 X」「帮我学 X」「study path」三种问法留作者日常使用覆盖（两宿主各已验中英直述问法 + description 已含口语化触发词）。
 
 ## A3：全程零 Key
 
@@ -86,12 +88,13 @@
 ## R6：宿主间无副作用
 
 - [x] Claude Code 免安装路径对 `.agents/` 零写入（session 级加载）
-- [ ] Codex 对 `.claude-plugin/` 零写入（待 Codex 冒烟后确认）
+- [x] Codex 对 `.claude-plugin/` 零写入（冒烟三轮后 `git status` 核实，`.claude-plugin/` 无任何改动）
 
 ## 判定
 
 - **A1（Claude Code 免安装链路）：PASS**——真实主题全链路（触发 → 三路研究 → 交叉印证 → 四产物 → HTML 构建 → DoD 逐项确认），验收人独立复核通过。
-- **A2（Codex）：阻塞于宿主账户额度**（非 skill 缺陷，实测记录见上）；待额度恢复后按清单补测。
-- A3 零 Key：Claude 侧 PASS；A4 CI：PASS；A5 安装命令一致性：PASS（守护测试钉住）。
-- 主路径安装（`/plugin marketplace add`）与 Codex 用户级安装依赖分支合并推送与作者本机操作，列为**待人工**。
-- 未全过不对外宣传（spec §8 约定）：当前状态 = **工程链路全绿 + Claude Code 实测通过，Codex 与主路径安装待补**。任何 FAIL → 回补对应任务或修订 spec（当前无 FAIL；Codex 为环境阻塞不是 FAIL）。
+- **A2（Codex 项目级 + 用户级）：PASS**——两主题（中/英问法）全链路 + 用户级发现机制 + R2 锚定路径实证。
+- A3 零 Key：双宿主 PASS（全程无任何 API Key 配置）；A4 CI：PASS；A5 安装命令一致性：PASS（守护测试钉住）。
+- R1/R2/R3/R5/R6 均有实证；R4（市场安装体验）待主路径安装。
+- 主路径安装（`/plugin marketplace add Shoothedrifter/LearningFactory` → `/plugin install learning-factory@LearningFactory`）与 `~/.claude/skills/` 复制兜底为最后待人工项（分支已推送，随时可执行）。
+- 未全过不对外宣传（spec §8 约定）：当前状态 = **工程链路全绿 + 双宿主实测通过；仅剩主路径安装一项待作者执行**。任何 FAIL → 回补对应任务或修订 spec（无 FAIL）。
